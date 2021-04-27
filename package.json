@@ -1,19 +1,16 @@
 {
   "name": "texteditor",
   "version": "1.0.0",
-  "description": "",
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c --watch"
   },
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bryanbuchanan/texteditor.git"
+  },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^18.0.0",
-    "@rollup/plugin-node-resolve": "^11.2.1",
-    "rollup": "^2.45.2",
-    "rollup-plugin-livereload": "^2.0.0",
-    "rollup-plugin-postcss": "^4.0.0",
-    "rollup-plugin-serve": "^1.1.0",
-    "sass": "^1.32.11"
+    "@rollup/plugin-node-resolve": "^11.2.1"
   }
 }
