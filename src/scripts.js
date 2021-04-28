@@ -179,7 +179,7 @@ for (let text of texts) {
 			
 			if (menu.offsetParent) {
 				
-				console.log(start.left, end.left);
+				// console.log(start.left, end.left);
 			
 				let box = menu.offsetParent.getBoundingClientRect();
 				// let left = Math.max((start.left + end.left) / 2, start.left + 3);
