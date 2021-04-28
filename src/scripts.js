@@ -44,7 +44,7 @@ class MenuView {
 			editorView.focus();
 	
 			let level;
-			let container = editorView.dom.closest('.js-editor');
+			let container = editorView.dom.closest('.editor');
 			const { $from, $to } = editorView.state.selection;
 			const currentBlock = $from.parent;
 						
@@ -127,13 +127,13 @@ class MenuView {
 }
 
 // Get all elements that should contain an editor
-let texts = document.querySelectorAll('.js-text');
+let texts = document.querySelectorAll('.text');
 
 // Loop through each one
 for (let text of texts) {
 		
-	let content = text.querySelector('.js-content');
-	let editor = text.querySelector('.js-editor');
+	let content = text.querySelector('.content');
+	let editor = text.querySelector('.editor');
 	
 	let menu = menuPlugin();
 	
@@ -166,7 +166,7 @@ for (let text of texts) {
 			// Save content
 			if (!previousState.eq(view.state.doc)) { }
 			
-			let menu = view.dom.closest('.js-editor').querySelector('.js-textmenu');
+			let menu = view.dom.closest('.editor').querySelector('.js-textmenu');
 			
 			if (view.state.selection.empty) {
 				menu.classList.remove('active');
@@ -195,7 +195,7 @@ for (let text of texts) {
 		},
 		handleDOMEvents: {
 			focus: (view, event) => {
-				let container = event.target.closest('.js-editor');
+				let container = event.target.closest('.editor');
 				view.wasFocused = true;
 				container.classList.add('focused');
 				// let id = event.target.closest('section').dataset.id;
@@ -204,7 +204,7 @@ for (let text of texts) {
 			},
 			blur: (view, event) => {
 				if (view.wasFocused) {
-					let container = event.target.closest('.js-editor');
+					let container = event.target.closest('.editor');
 					container.classList.remove('focused');
 					container.querySelector('.js-textmenu').classList.remove('active');
 				}
