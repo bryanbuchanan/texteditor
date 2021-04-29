@@ -11,6 +11,7 @@ let menu = mymenu([
 	{ command: whatever(), label: '<strong>B<strong>' },
 	{ command: whatever(), label: '<em>Italic</em>' },
 	{ command: whatever(), label: '<i class="fal fa-heading"></i>' },
+	{ divider },
 	etc...
 ]);
 
