@@ -22,6 +22,8 @@ I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working
 - **blockquote**: Ditto, should act as a toggle.
 - **hr**: Needs to insert a hr at the cursor. No toggle needed as normal backspace should erase the hr
 
+All functionality should reside within the plugin, if at all possible, to retain maximum modularity.
+
 The insertion of anything else like (linked) images and video embeds are not necessary, but the plugin should be constructed in a way that these things can be added later on if needed.
 
 
