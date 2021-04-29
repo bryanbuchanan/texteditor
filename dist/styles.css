@@ -2,6 +2,7 @@
   display: flex;
   position: absolute;
   z-index: 1000;
+  color: #fff;
   background: #222;
   transform: translateX(-50%);
   display: none;
@@ -16,7 +17,6 @@
   width: 40px;
   height: 50px;
   line-height: 50px;
-  color: #fff;
   opacity: 0.75;
   transition: all 0.15s ease-out;
   box-sizing: content-box;
@@ -31,15 +31,46 @@
   opacity: 1;
   background: rgba(255, 255, 255, 0.15);
 }
-.textmenu__button--heading1 {
-  font-size: 1.1em;
+.textmenu__button.active {
+  opacity: 1;
+  background: #666;
 }
 .textmenu__button--heading2 {
+  font-size: 1.1em;
+}
+.textmenu__button--heading3 {
   font-size: 0.8em;
 }
 .textmenu__divider {
   width: 1px;
   margin: 10px;
   background: rgba(255, 255, 255, 0.25);
+}
+.textmenu__link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  background: #222;
+  display: none;
+}
+.textmenu__linkinput {
+  flex-grow: 1;
+  background: transparent;
+  color: #fff;
+  padding: 0 20px;
+  border: none;
+}
+.textmenu__linkclose {
+  height: 50px;
+  line-height: 50px;
+  width: 50px;
+  text-align: center;
+  cursor: pointer;
+}
+.textmenu.link .textmenu__link {
+  display: flex;
 }
 /*# sourceMappingURL=styles.css.map */

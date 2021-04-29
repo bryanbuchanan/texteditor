@@ -6308,6 +6308,23 @@
     return name + "$"
   }
 
+  // ::- A key is used to [tag](#state.PluginSpec.key)
+  // plugins in a way that makes it possible to find them, given an
+  // editor state. Assigning a key does mean only one plugin of that
+  // type can be active in a state.
+  var PluginKey = function PluginKey(name) {
+  if ( name === void 0 ) name = "key";
+   this.key = createKey(name); };
+
+  // :: (EditorState) → ?Plugin
+  // Get the active plugin with this key, if any, from an editor
+  // state.
+  PluginKey.prototype.get = function get (state) { return state.config.pluginsByKey[this.key] };
+
+  // :: (EditorState) → ?any
+  // Get the plugin's state from an editor state.
+  PluginKey.prototype.getState = function getState (state) { return state[this.key] };
+
   var result = {};
 
   if (typeof navigator != "undefined" && typeof document != "undefined") {
@@ -6316,15 +6333,15 @@
     var ie_11up = /Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
 
     result.mac = /Mac/.test(navigator.platform);
-    var ie = result.ie = !!(ie_upto10 || ie_11up || ie_edge);
+    var ie$1 = result.ie = !!(ie_upto10 || ie_11up || ie_edge);
     result.ie_version = ie_upto10 ? document.documentMode || 6 : ie_11up ? +ie_11up[1] : ie_edge ? +ie_edge[1] : null;
-    result.gecko = !ie && /gecko\/(\d+)/i.test(navigator.userAgent);
+    result.gecko = !ie$1 && /gecko\/(\d+)/i.test(navigator.userAgent);
     result.gecko_version = result.gecko && +(/Firefox\/(\d+)/.exec(navigator.userAgent) || [0, 0])[1];
-    var chrome = !ie && /Chrome\/(\d+)/.exec(navigator.userAgent);
-    result.chrome = !!chrome;
-    result.chrome_version = chrome && +chrome[1];
+    var chrome$1 = !ie$1 && /Chrome\/(\d+)/.exec(navigator.userAgent);
+    result.chrome = !!chrome$1;
+    result.chrome_version = chrome$1 && +chrome$1[1];
     // Is true for both iOS and iPadOS for convenience
-    result.safari = !ie && /Apple Computer/.test(navigator.vendor);
+    result.safari = !ie$1 && /Apple Computer/.test(navigator.vendor);
     result.ios = result.safari && (/Mobile\/\w+/.test(navigator.userAgent) || navigator.maxTouchPoints > 2);
     result.android = /Android \d/.test(navigator.userAgent);
     result.webkit = "webkitFontSmoothing" in document.documentElement.style;
@@ -11905,6 +11922,31 @@
     return false
   }
 
+  // :: (NodeType, ?Object) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
+  // Returns a command that tries to set the selected textblocks to the
+  // given node type with the given attributes.
+  function setBlockType(nodeType, attrs) {
+    return function(state, dispatch) {
+      var ref = state.selection;
+      var from = ref.from;
+      var to = ref.to;
+      var applicable = false;
+      state.doc.nodesBetween(from, to, function (node, pos) {
+        if (applicable) { return false }
+        if (!node.isTextblock || node.hasMarkup(nodeType, attrs)) { return }
+        if (node.type == nodeType) {
+          applicable = true;
+        } else {
+          var $pos = state.doc.resolve(pos), index = $pos.index();
+          applicable = $pos.parent.canReplaceWith(index, index + 1, nodeType);
+        }
+      });
+      if (!applicable) { return false }
+      if (dispatch) { dispatch(state.tr.setBlockType(from, to, nodeType, attrs).scrollIntoView()); }
+      return true
+    }
+  }
+
   function markApplies(doc, ranges, type) {
     var loop = function ( i ) {
       var ref = ranges[i];
@@ -12004,7 +12046,7 @@
   // * **Delete** and **Mod-Delete** to `deleteSelection`, `joinForward`, `selectNodeForward`
   // * **Mod-Delete** to `deleteSelection`, `joinForward`, `selectNodeForward`
   // * **Mod-a** to `selectAll`
-  ({
+  var pcBaseKeymap = {
     "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlock),
     "Mod-Enter": exitCode,
     "Backspace": backspace,
@@ -12012,11 +12054,528 @@
     "Delete": del,
     "Mod-Delete": del,
     "Mod-a": selectAll
-  });
+  };
+
+  // :: Object
+  // A copy of `pcBaseKeymap` that also binds **Ctrl-h** like Backspace,
+  // **Ctrl-d** like Delete, **Alt-Backspace** like Ctrl-Backspace, and
+  // **Ctrl-Alt-Backspace**, **Alt-Delete**, and **Alt-d** like
+  // Ctrl-Delete.
+  var macBaseKeymap = {
+    "Ctrl-h": pcBaseKeymap["Backspace"],
+    "Alt-Backspace": pcBaseKeymap["Mod-Backspace"],
+    "Ctrl-d": pcBaseKeymap["Delete"],
+    "Ctrl-Alt-Backspace": pcBaseKeymap["Mod-Delete"],
+    "Alt-Delete": pcBaseKeymap["Mod-Delete"],
+    "Alt-d": pcBaseKeymap["Mod-Delete"]
+  };
+  for (var key in pcBaseKeymap) { macBaseKeymap[key] = pcBaseKeymap[key]; }
 
   // declare global: os, navigator
-  typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
+  var mac$2 = typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
             : typeof os != "undefined" ? os.platform() == "darwin" : false;
+
+  // :: Object
+  // Depending on the detected platform, this will hold
+  // [`pcBasekeymap`](#commands.pcBaseKeymap) or
+  // [`macBaseKeymap`](#commands.macBaseKeymap).
+  var baseKeymap = mac$2 ? macBaseKeymap : pcBaseKeymap;
+
+  var base = {
+    8: "Backspace",
+    9: "Tab",
+    10: "Enter",
+    12: "NumLock",
+    13: "Enter",
+    16: "Shift",
+    17: "Control",
+    18: "Alt",
+    20: "CapsLock",
+    27: "Escape",
+    32: " ",
+    33: "PageUp",
+    34: "PageDown",
+    35: "End",
+    36: "Home",
+    37: "ArrowLeft",
+    38: "ArrowUp",
+    39: "ArrowRight",
+    40: "ArrowDown",
+    44: "PrintScreen",
+    45: "Insert",
+    46: "Delete",
+    59: ";",
+    61: "=",
+    91: "Meta",
+    92: "Meta",
+    106: "*",
+    107: "+",
+    108: ",",
+    109: "-",
+    110: ".",
+    111: "/",
+    144: "NumLock",
+    145: "ScrollLock",
+    160: "Shift",
+    161: "Shift",
+    162: "Control",
+    163: "Control",
+    164: "Alt",
+    165: "Alt",
+    173: "-",
+    186: ";",
+    187: "=",
+    188: ",",
+    189: "-",
+    190: ".",
+    191: "/",
+    192: "`",
+    219: "[",
+    220: "\\",
+    221: "]",
+    222: "'",
+    229: "q"
+  };
+
+  var shift = {
+    48: ")",
+    49: "!",
+    50: "@",
+    51: "#",
+    52: "$",
+    53: "%",
+    54: "^",
+    55: "&",
+    56: "*",
+    57: "(",
+    59: ":",
+    61: "+",
+    173: "_",
+    186: ":",
+    187: "+",
+    188: "<",
+    189: "_",
+    190: ">",
+    191: "?",
+    192: "~",
+    219: "{",
+    220: "|",
+    221: "}",
+    222: "\"",
+    229: "Q"
+  };
+
+  var chrome = typeof navigator != "undefined" && /Chrome\/(\d+)/.exec(navigator.userAgent);
+  var safari = typeof navigator != "undefined" && /Apple Computer/.test(navigator.vendor);
+  var gecko = typeof navigator != "undefined" && /Gecko\/\d+/.test(navigator.userAgent);
+  var mac$1 = typeof navigator != "undefined" && /Mac/.test(navigator.platform);
+  var ie = typeof navigator != "undefined" && /MSIE \d|Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
+  var brokenModifierNames = chrome && (mac$1 || +chrome[1] < 57) || gecko && mac$1;
+
+  // Fill in the digit keys
+  for (var i = 0; i < 10; i++) base[48 + i] = base[96 + i] = String(i);
+
+  // The function keys
+  for (var i = 1; i <= 24; i++) base[i + 111] = "F" + i;
+
+  // And the alphabetic keys
+  for (var i = 65; i <= 90; i++) {
+    base[i] = String.fromCharCode(i + 32);
+    shift[i] = String.fromCharCode(i);
+  }
+
+  // For each code that doesn't have a shift-equivalent, copy the base name
+  for (var code in base) if (!shift.hasOwnProperty(code)) shift[code] = base[code];
+
+  function keyName(event) {
+    // Don't trust event.key in Chrome when there are modifiers until
+    // they fix https://bugs.chromium.org/p/chromium/issues/detail?id=633838
+    var ignoreKey = brokenModifierNames && (event.ctrlKey || event.altKey || event.metaKey) ||
+      (safari || ie) && event.shiftKey && event.key && event.key.length == 1;
+    var name = (!ignoreKey && event.key) ||
+      (event.shiftKey ? shift : base)[event.keyCode] ||
+      event.key || "Unidentified";
+    // Edge sometimes produces wrong names (Issue #3)
+    if (name == "Esc") name = "Escape";
+    if (name == "Del") name = "Delete";
+    // https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/8860571/
+    if (name == "Left") name = "ArrowLeft";
+    if (name == "Up") name = "ArrowUp";
+    if (name == "Right") name = "ArrowRight";
+    if (name == "Down") name = "ArrowDown";
+    return name
+  }
+
+  // declare global: navigator
+
+  var mac = typeof navigator != "undefined" ? /Mac/.test(navigator.platform) : false;
+
+  function normalizeKeyName(name) {
+    var parts = name.split(/-(?!$)/), result = parts[parts.length - 1];
+    if (result == "Space") { result = " "; }
+    var alt, ctrl, shift, meta;
+    for (var i = 0; i < parts.length - 1; i++) {
+      var mod = parts[i];
+      if (/^(cmd|meta|m)$/i.test(mod)) { meta = true; }
+      else if (/^a(lt)?$/i.test(mod)) { alt = true; }
+      else if (/^(c|ctrl|control)$/i.test(mod)) { ctrl = true; }
+      else if (/^s(hift)?$/i.test(mod)) { shift = true; }
+      else if (/^mod$/i.test(mod)) { if (mac) { meta = true; } else { ctrl = true; } }
+      else { throw new Error("Unrecognized modifier name: " + mod) }
+    }
+    if (alt) { result = "Alt-" + result; }
+    if (ctrl) { result = "Ctrl-" + result; }
+    if (meta) { result = "Meta-" + result; }
+    if (shift) { result = "Shift-" + result; }
+    return result
+  }
+
+  function normalize(map) {
+    var copy = Object.create(null);
+    for (var prop in map) { copy[normalizeKeyName(prop)] = map[prop]; }
+    return copy
+  }
+
+  function modifiers(name, event, shift) {
+    if (event.altKey) { name = "Alt-" + name; }
+    if (event.ctrlKey) { name = "Ctrl-" + name; }
+    if (event.metaKey) { name = "Meta-" + name; }
+    if (shift !== false && event.shiftKey) { name = "Shift-" + name; }
+    return name
+  }
+
+  // :: (Object) → Plugin
+  // Create a keymap plugin for the given set of bindings.
+  //
+  // Bindings should map key names to [command](#commands)-style
+  // functions, which will be called with `(EditorState, dispatch,
+  // EditorView)` arguments, and should return true when they've handled
+  // the key. Note that the view argument isn't part of the command
+  // protocol, but can be used as an escape hatch if a binding needs to
+  // directly interact with the UI.
+  //
+  // Key names may be strings like `"Shift-Ctrl-Enter"`—a key
+  // identifier prefixed with zero or more modifiers. Key identifiers
+  // are based on the strings that can appear in
+  // [`KeyEvent.key`](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key).
+  // Use lowercase letters to refer to letter keys (or uppercase letters
+  // if you want shift to be held). You may use `"Space"` as an alias
+  // for the `" "` name.
+  //
+  // Modifiers can be given in any order. `Shift-` (or `s-`), `Alt-` (or
+  // `a-`), `Ctrl-` (or `c-` or `Control-`) and `Cmd-` (or `m-` or
+  // `Meta-`) are recognized. For characters that are created by holding
+  // shift, the `Shift-` prefix is implied, and should not be added
+  // explicitly.
+  //
+  // You can use `Mod-` as a shorthand for `Cmd-` on Mac and `Ctrl-` on
+  // other platforms.
+  //
+  // You can add multiple keymap plugins to an editor. The order in
+  // which they appear determines their precedence (the ones early in
+  // the array get to dispatch first).
+  function keymap(bindings) {
+    return new Plugin({props: {handleKeyDown: keydownHandler(bindings)}})
+  }
+
+  // :: (Object) → (view: EditorView, event: dom.Event) → bool
+  // Given a set of bindings (using the same format as
+  // [`keymap`](#keymap.keymap), return a [keydown
+  // handler](#view.EditorProps.handleKeyDown) that handles them.
+  function keydownHandler(bindings) {
+    var map = normalize(bindings);
+    return function(view, event) {
+      var name = keyName(event), isChar = name.length == 1 && name != " ", baseName;
+      var direct = map[modifiers(name, event, !isChar)];
+      if (direct && direct(view.state, view.dispatch, view)) { return true }
+      if (isChar && (event.shiftKey || event.altKey || event.metaKey || name.charCodeAt(0) > 127) &&
+          (baseName = base[event.keyCode]) && baseName != name) {
+        // Try falling back to the keyCode when there's a modifier
+        // active or the character produced isn't ASCII, and our table
+        // produces a different name from the the keyCode. See #668,
+        // #1060
+        var fromCode = map[modifiers(baseName, event, true)];
+        if (fromCode && fromCode(view.state, view.dispatch, view)) { return true }
+      } else if (isChar && event.shiftKey) {
+        // Otherwise, if shift is active, also try the binding with the
+        // Shift- prefix enabled. See #997
+        var withShift = map[modifiers(name, event, true)];
+        if (withShift && withShift(view.state, view.dispatch, view)) { return true }
+      }
+      return false
+    }
+  }
+
+  var GOOD_LEAF_SIZE = 200;
+
+  // :: class<T> A rope sequence is a persistent sequence data structure
+  // that supports appending, prepending, and slicing without doing a
+  // full copy. It is represented as a mostly-balanced tree.
+  var RopeSequence = function RopeSequence () {};
+
+  RopeSequence.prototype.append = function append (other) {
+    if (!other.length) { return this }
+    other = RopeSequence.from(other);
+
+    return (!this.length && other) ||
+      (other.length < GOOD_LEAF_SIZE && this.leafAppend(other)) ||
+      (this.length < GOOD_LEAF_SIZE && other.leafPrepend(this)) ||
+      this.appendInner(other)
+  };
+
+  // :: (union<[T], RopeSequence<T>>) → RopeSequence<T>
+  // Prepend an array or other rope to this one, returning a new rope.
+  RopeSequence.prototype.prepend = function prepend (other) {
+    if (!other.length) { return this }
+    return RopeSequence.from(other).append(this)
+  };
+
+  RopeSequence.prototype.appendInner = function appendInner (other) {
+    return new Append(this, other)
+  };
+
+  // :: (?number, ?number) → RopeSequence<T>
+  // Create a rope repesenting a sub-sequence of this rope.
+  RopeSequence.prototype.slice = function slice (from, to) {
+      if ( from === void 0 ) from = 0;
+      if ( to === void 0 ) to = this.length;
+
+    if (from >= to) { return RopeSequence.empty }
+    return this.sliceInner(Math.max(0, from), Math.min(this.length, to))
+  };
+
+  // :: (number) → T
+  // Retrieve the element at the given position from this rope.
+  RopeSequence.prototype.get = function get (i) {
+    if (i < 0 || i >= this.length) { return undefined }
+    return this.getInner(i)
+  };
+
+  // :: ((element: T, index: number) → ?bool, ?number, ?number)
+  // Call the given function for each element between the given
+  // indices. This tends to be more efficient than looping over the
+  // indices and calling `get`, because it doesn't have to descend the
+  // tree for every element.
+  RopeSequence.prototype.forEach = function forEach (f, from, to) {
+      if ( from === void 0 ) from = 0;
+      if ( to === void 0 ) to = this.length;
+
+    if (from <= to)
+      { this.forEachInner(f, from, to, 0); }
+    else
+      { this.forEachInvertedInner(f, from, to, 0); }
+  };
+
+  // :: ((element: T, index: number) → U, ?number, ?number) → [U]
+  // Map the given functions over the elements of the rope, producing
+  // a flat array.
+  RopeSequence.prototype.map = function map (f, from, to) {
+      if ( from === void 0 ) from = 0;
+      if ( to === void 0 ) to = this.length;
+
+    var result = [];
+    this.forEach(function (elt, i) { return result.push(f(elt, i)); }, from, to);
+    return result
+  };
+
+  // :: (?union<[T], RopeSequence<T>>) → RopeSequence<T>
+  // Create a rope representing the given array, or return the rope
+  // itself if a rope was given.
+  RopeSequence.from = function from (values) {
+    if (values instanceof RopeSequence) { return values }
+    return values && values.length ? new Leaf(values) : RopeSequence.empty
+  };
+
+  var Leaf = /*@__PURE__*/(function (RopeSequence) {
+    function Leaf(values) {
+      RopeSequence.call(this);
+      this.values = values;
+    }
+
+    if ( RopeSequence ) Leaf.__proto__ = RopeSequence;
+    Leaf.prototype = Object.create( RopeSequence && RopeSequence.prototype );
+    Leaf.prototype.constructor = Leaf;
+
+    var prototypeAccessors = { length: { configurable: true },depth: { configurable: true } };
+
+    Leaf.prototype.flatten = function flatten () {
+      return this.values
+    };
+
+    Leaf.prototype.sliceInner = function sliceInner (from, to) {
+      if (from == 0 && to == this.length) { return this }
+      return new Leaf(this.values.slice(from, to))
+    };
+
+    Leaf.prototype.getInner = function getInner (i) {
+      return this.values[i]
+    };
+
+    Leaf.prototype.forEachInner = function forEachInner (f, from, to, start) {
+      for (var i = from; i < to; i++)
+        { if (f(this.values[i], start + i) === false) { return false } }
+    };
+
+    Leaf.prototype.forEachInvertedInner = function forEachInvertedInner (f, from, to, start) {
+      for (var i = from - 1; i >= to; i--)
+        { if (f(this.values[i], start + i) === false) { return false } }
+    };
+
+    Leaf.prototype.leafAppend = function leafAppend (other) {
+      if (this.length + other.length <= GOOD_LEAF_SIZE)
+        { return new Leaf(this.values.concat(other.flatten())) }
+    };
+
+    Leaf.prototype.leafPrepend = function leafPrepend (other) {
+      if (this.length + other.length <= GOOD_LEAF_SIZE)
+        { return new Leaf(other.flatten().concat(this.values)) }
+    };
+
+    prototypeAccessors.length.get = function () { return this.values.length };
+
+    prototypeAccessors.depth.get = function () { return 0 };
+
+    Object.defineProperties( Leaf.prototype, prototypeAccessors );
+
+    return Leaf;
+  }(RopeSequence));
+
+  // :: RopeSequence
+  // The empty rope sequence.
+  RopeSequence.empty = new Leaf([]);
+
+  var Append = /*@__PURE__*/(function (RopeSequence) {
+    function Append(left, right) {
+      RopeSequence.call(this);
+      this.left = left;
+      this.right = right;
+      this.length = left.length + right.length;
+      this.depth = Math.max(left.depth, right.depth) + 1;
+    }
+
+    if ( RopeSequence ) Append.__proto__ = RopeSequence;
+    Append.prototype = Object.create( RopeSequence && RopeSequence.prototype );
+    Append.prototype.constructor = Append;
+
+    Append.prototype.flatten = function flatten () {
+      return this.left.flatten().concat(this.right.flatten())
+    };
+
+    Append.prototype.getInner = function getInner (i) {
+      return i < this.left.length ? this.left.get(i) : this.right.get(i - this.left.length)
+    };
+
+    Append.prototype.forEachInner = function forEachInner (f, from, to, start) {
+      var leftLen = this.left.length;
+      if (from < leftLen &&
+          this.left.forEachInner(f, from, Math.min(to, leftLen), start) === false)
+        { return false }
+      if (to > leftLen &&
+          this.right.forEachInner(f, Math.max(from - leftLen, 0), Math.min(this.length, to) - leftLen, start + leftLen) === false)
+        { return false }
+    };
+
+    Append.prototype.forEachInvertedInner = function forEachInvertedInner (f, from, to, start) {
+      var leftLen = this.left.length;
+      if (from > leftLen &&
+          this.right.forEachInvertedInner(f, from - leftLen, Math.max(to, leftLen) - leftLen, start + leftLen) === false)
+        { return false }
+      if (to < leftLen &&
+          this.left.forEachInvertedInner(f, Math.min(from, leftLen), to, start) === false)
+        { return false }
+    };
+
+    Append.prototype.sliceInner = function sliceInner (from, to) {
+      if (from == 0 && to == this.length) { return this }
+      var leftLen = this.left.length;
+      if (to <= leftLen) { return this.left.slice(from, to) }
+      if (from >= leftLen) { return this.right.slice(from - leftLen, to - leftLen) }
+      return this.left.slice(from, leftLen).append(this.right.slice(0, to - leftLen))
+    };
+
+    Append.prototype.leafAppend = function leafAppend (other) {
+      var inner = this.right.leafAppend(other);
+      if (inner) { return new Append(this.left, inner) }
+    };
+
+    Append.prototype.leafPrepend = function leafPrepend (other) {
+      var inner = this.left.leafPrepend(other);
+      if (inner) { return new Append(inner, this.right) }
+    };
+
+    Append.prototype.appendInner = function appendInner (other) {
+      if (this.left.depth >= Math.max(this.right.depth, other.depth) + 1)
+        { return new Append(this.left, new Append(this.right, other)) }
+      return new Append(this, other)
+    };
+
+    return Append;
+  }(RopeSequence));
+
+  // The value of the state field that tracks undo/redo history for that
+  // state. Will be stored in the plugin state when the history plugin
+  // is active.
+  var HistoryState = function HistoryState(done, undone, prevRanges, prevTime) {
+    this.done = done;
+    this.undone = undone;
+    this.prevRanges = prevRanges;
+    this.prevTime = prevTime;
+  };
+
+  // : (HistoryState, EditorState, (tr: Transaction), bool)
+  // Apply the latest event from one branch to the document and shift the event
+  // onto the other branch.
+  function histTransaction(history, state, dispatch, redo) {
+    var preserveItems = mustPreserveItems(state), histOptions = historyKey.get(state).spec.config;
+    var pop = (redo ? history.undone : history.done).popEvent(state, preserveItems);
+    if (!pop) { return }
+
+    var selection = pop.selection.resolve(pop.transform.doc);
+    var added = (redo ? history.done : history.undone).addTransform(pop.transform, state.selection.getBookmark(),
+                                                                    histOptions, preserveItems);
+
+    var newHist = new HistoryState(redo ? added : pop.remaining, redo ? pop.remaining : added, null, 0);
+    dispatch(pop.transform.setSelection(selection).setMeta(historyKey, {redo: redo, historyState: newHist}).scrollIntoView());
+  }
+
+  var cachedPreserveItems = false, cachedPreserveItemsPlugins = null;
+  // Check whether any plugin in the given state has a
+  // `historyPreserveItems` property in its spec, in which case we must
+  // preserve steps exactly as they came in, so that they can be
+  // rebased.
+  function mustPreserveItems(state) {
+    var plugins = state.plugins;
+    if (cachedPreserveItemsPlugins != plugins) {
+      cachedPreserveItems = false;
+      cachedPreserveItemsPlugins = plugins;
+      for (var i = 0; i < plugins.length; i++) { if (plugins[i].spec.historyPreserveItems) {
+        cachedPreserveItems = true;
+        break
+      } }
+    }
+    return cachedPreserveItems
+  }
+
+  var historyKey = new PluginKey("history");
+  new PluginKey("closeHistory");
+
+  // :: (EditorState, ?(tr: Transaction)) → bool
+  // A command function that undoes the last change, if any.
+  function undo(state, dispatch) {
+    var hist = historyKey.getState(state);
+    if (!hist || hist.done.eventCount == 0) { return false }
+    if (dispatch) { histTransaction(hist, state, dispatch, false); }
+    return true
+  }
+
+  // :: (EditorState, ?(tr: Transaction)) → bool
+  // A command function that redoes the last undone change, if any.
+  function redo(state, dispatch) {
+    var hist = historyKey.getState(state);
+    if (!hist || hist.undone.eventCount == 0) { return false }
+    if (dispatch) { histTransaction(hist, state, dispatch, true); }
+    return true
+  }
 
   class MenuView {
   	
@@ -12028,8 +12587,14 @@
   		this.dom = document.createElement('div');
   		this.dom.className = "textmenu js-textmenu";
   		
+  		// Build link input prompt
+  		let container = document.createElement('div');
+  		container.innerHTML = '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>';
+  		let linkPrompt = container.querySelector('*');
+  		this.dom.appendChild(linkPrompt);
+  		
   		// Run coversions on item array
-  		items.forEach(function(item, index) {
+  		items.forEach((item, index) => {
   			// Convert strings to dom nodes
   			if (typeof item.dom === "string") {
   				let container = document.createElement('div');
@@ -12041,7 +12606,20 @@
   				items[index].command = toggleMark(schema.marks.strong);
   			} else if (item.command === "em") {
   				items[index].command = toggleMark(schema.marks.em);
+  			} else if (item.command === "h2") {
+  				// TODO
+  				items[index].command = setBlockType(schema.nodes.heading, { level: 2 });
+  			} else if (item.command === "h3") {
+  				// TODO
+  				items[index].command = setBlockType(schema.nodes.heading, { level: 3 });
+  			} else if (item.command === "link") {
+  				// TODO
+  				items[index].command = () => {
+  					console.log(editorView.dom.closest('*'));
+  					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link');
+  					};
   			}
+  			// TODO: Add ul, ol, hr, blockquote
   		});
   		
   		// Append to container
@@ -12055,7 +12633,11 @@
   			e.preventDefault();
   			editorView.focus();
   			items.forEach(({command, dom}) => {
-  				if (dom.contains(e.target)) command(editorView.state, editorView.dispatch, editorView);
+  				if (typeof command == "function") {
+  					if (dom.contains(e.target)) {
+  						command(editorView.state, editorView.dispatch, editorView);
+  					}
+  				}
   			});
   		});
   	
@@ -12063,14 +12645,9 @@
   	
   	update() {
   		
-  		// Set current styling to active
+  		// Set menu buttons to 'active', if current selection matches
   		this.items.forEach(({command, dom}) => {
-  			let active = command(this.editorView.state, null, this.editorView);
-  			if (dom.style.display == active) {
-  				dom.classList.remove('active');
-  			} else {
-  				dom.classList.add('active');
-  			}
+  			// TODO
   		});
   				
   		let menu = this.editorView.dom.closest('.editor').querySelector('.js-textmenu');
@@ -12149,16 +12726,54 @@
   			dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
   		},
   		{
-  			command: 'em',
-  			dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
+  			command: 'link',
+  			dom: '<div title="Link" class="textmenu__button textmenu__button--link js-link"><i class="fal fa-link"></i></div>',
   		},
+  		{
+  			command: false,
+  			dom: '<div class="textmenu__divider"></div>'
+  		},
+  		{
+  			command: 'h2',
+  			dom: '<div title="Big Heading" class="textmenu__button textmenu__button--heading2 js-heading2"><i class="fal fa-heading"></i></div>'
+  		},
+  		{
+  			command: 'h3',
+  			dom: '<div title="Small Heading" class="textmenu__button textmenu__button--heading3 js-heading3"><i class="fal fa-heading"></i></div>'	
+  		},
+  		{
+  			command: null,
+  			dom: '<div class="textmenu__divider"></div>'
+  		},
+  		{
+  			command: null,
+  			dom: '<div title="Bullet List" class="textmenu__button textmenu__button--list js-list"><i class="fal fa-list"></i></div>'
+  		},
+  		{
+  			command: null,
+  			dom: '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>'
+  		},
+  		{
+  			command: null,
+  			dom: '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>'
+  		}
+  	
   	]);
   	
   	// Define state
   	let state = EditorState.create({
   		doc: DOMParser.fromSchema(schema).parse(content),
   		plugins: [
-  			menu
+  			keymap(baseKeymap),
+  			keymap({
+  				"Shift-Enter": schema.nodes.hard_break.create(), // WOrks but causes error
+  				"Mod-b": toggleMark(schema.marks.strong),
+  				"Mod-i": toggleMark(schema.marks.em),
+  				"Mod-z": undo,
+  				"Mod-y": redo
+  			}),
+  			
+  			menu,
   		]
   	});
   	
@@ -12171,7 +12786,7 @@
   			let previousState = view.state.doc;
   			let newState = view.state.apply(transaction);
   			view.updateState(newState);
-  			
+  				
   			// Save content
   			if (!previousState.eq(view.state.doc)) ;
   			

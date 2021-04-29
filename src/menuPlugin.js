@@ -12,8 +12,14 @@ class MenuView {
 		this.dom = document.createElement('div')
 		this.dom.className = "textmenu js-textmenu"
 		
+		// Build link input prompt
+		let container = document.createElement('div')
+		container.innerHTML = '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>'
+		let linkPrompt = container.querySelector('*')
+		this.dom.appendChild(linkPrompt)
+		
 		// Run coversions on item array
-		items.forEach(function(item, index) {
+		items.forEach((item, index) => {
 			// Convert strings to dom nodes
 			if (typeof item.dom === "string") {
 				let container = document.createElement('div')
@@ -25,7 +31,20 @@ class MenuView {
 				items[index].command = toggleMark(schema.marks.strong)
 			} else if (item.command === "em") {
 				items[index].command = toggleMark(schema.marks.em)
+			} else if (item.command === "h2") {
+				// TODO
+				items[index].command = setBlockType(schema.nodes.heading, { level: 2 })
+			} else if (item.command === "h3") {
+				// TODO
+				items[index].command = setBlockType(schema.nodes.heading, { level: 3 })
+			} else if (item.command === "link") {
+				// TODO
+				items[index].command = () => {
+					console.log(editorView.dom.closest('*'))
+					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link')
+					}
 			}
+			// TODO: Add ul, ol, hr, blockquote
 		})
 		
 		// Append to container
@@ -39,7 +58,11 @@ class MenuView {
 			e.preventDefault()
 			editorView.focus()
 			items.forEach(({command, dom}) => {
-				if (dom.contains(e.target)) command(editorView.state, editorView.dispatch, editorView)
+				if (typeof command == "function") {
+					if (dom.contains(e.target)) {
+						command(editorView.state, editorView.dispatch, editorView)
+					}
+				}
 			})
 		})
 	
@@ -47,14 +70,9 @@ class MenuView {
 	
 	update() {
 		
-		// Set current styling to active
+		// Set menu buttons to 'active', if current selection matches
 		this.items.forEach(({command, dom}) => {
-			let active = command(this.editorView.state, null, this.editorView)
-			if (dom.style.display == active) {
-				dom.classList.remove('active')
-			} else {
-				dom.classList.add('active')
-			}
+			// TODO
 		});
 				
 		let menu = this.editorView.dom.closest('.editor').querySelector('.js-textmenu')
