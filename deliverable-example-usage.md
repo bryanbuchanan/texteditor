@@ -1,3 +1,5 @@
+# Example plugin usage
+
 ```
 
 import { mymenu } from "./mymenu.js";
