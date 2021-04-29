@@ -18,7 +18,7 @@ class MenuView {
 		let linkPrompt = container.querySelector('*')
 		this.dom.appendChild(linkPrompt)
 		
-		// Run coversions on item array
+		// Run conversions on item array
 		items.forEach((item, index) => {
 			// Convert strings to dom nodes
 			if (typeof item.dom === "string") {
@@ -32,19 +32,19 @@ class MenuView {
 			} else if (item.command === "em") {
 				items[index].command = toggleMark(schema.marks.em)
 			} else if (item.command === "h2") {
-				// TODO
+				// TODO: Make button toggle block type, rather than only set it
 				items[index].command = setBlockType(schema.nodes.heading, { level: 2 })
 			} else if (item.command === "h3") {
-				// TODO
+				// TODO: Make button toggle block type, rather than only set it
 				items[index].command = setBlockType(schema.nodes.heading, { level: 3 })
 			} else if (item.command === "link") {
-				// TODO
+				// TODO: Open link input, create link on enter, close link prompt button, remove link if selected *is* link
 				items[index].command = () => {
 					console.log(editorView.dom.closest('*'))
 					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link')
 					}
 			}
-			// TODO: Add ul, ol, hr, blockquote
+			// TODO: Add ul, ol, hr, blockquote functionality
 		})
 		
 		// Append to container
@@ -70,7 +70,7 @@ class MenuView {
 	
 	update() {
 		
-		// Set menu buttons to 'active', if current selection matches
+		// Set menu buttons to 'active', if current selection matches the command the button would assign
 		this.items.forEach(({command, dom}) => {
 			// TODO
 		});
