@@ -1,10 +1,10 @@
 # Custom Prosemirror Menu Job Description
 
-I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working demo of the plugin so far can be viewed [here](https://bryanbuchanan.github.io/texteditor/)
+I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working demo of what's done so far can be viewed [here](https://bryanbuchanan.github.io/texteditor/)
 
 ### Todo/Scope
 
-#### Complete Button Functionality
+#### 1. Complete button functionality
 
 - **strong** (done)
 - **em** (done)
@@ -22,8 +22,8 @@ I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working
 - **blockquote**: Ditto, should act as a toggle.
 - **hr**: Needs to insert a hr at the cursor. No toggle needed as normal backspace should erase the hr
 
-All functionality should reside within the plugin, if at all possible, to retain maximum modularity.
-
 The insertion of anything else like (linked) images and video embeds are not necessary, but the plugin should be constructed in a way that these things can be added later on if needed.
 
+#### 2. Keep functionality within the scope of the plugin
 
+Everything should reside within the plugin, to keep things as modular as possible. To the best of my knowledge, the code so far should follow this rule and is only in need of expansion rather than refactoring on any large scale.
