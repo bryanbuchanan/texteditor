@@ -1,55 +1,17 @@
 # Custom Prosemirror Menu Job Description
 
-I'm in need of a custom popup Prosemirror menu, similar to the menu found on [Medium.com](http://medium.com)'s text editor.
+(Not complete)
 
-I have a barely-working proof here, which can serve as illustration for the behaviors required, but
+I'm in need of assistance wrapping up a popup Prosemirror menu plugin. My work in progress can be viewed [here](https://github.com/bryanbuchanan/texteditor)
 
-<https://github.com/bryanbuchanan/texteditor>
-
-
-```
-<div class="textmenu js-textmenu">
-	{{button_dom}}
-	{{button_dom}}
-	{{button_dom}}
-	...
-</div>
-```
-
-<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>
-<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>
-<div title="Link" class="textmenu__button textmenu__button--link js-link"><i class="fal fa-link"></i></div>
-
-<div class="textmenu__divider"></div>
-
-<div title="Heading 1" class="textmenu__button textmenu__button--heading1 js-heading1"><i class="fal fa-heading"></i></div>
-<div title="Heading 2" class="textmenu__button textmenu__button--heading2 js-heading2"><i class="fal fa-heading"></i></div>
-
-<div class="textmenu__divider"></div>
-
-<div title="Bullet List" class="textmenu__button textmenu__button--list js-list"><i class="fal fa-list"></i></div>
-<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>
-<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>
-
-</div>
-
-
-
-
-## Requirements
-
-### Menu
-
-- It should be a popup menu, hidden by way of a css class until a selection is made, at which point it's displayed centered above the selection
-- Should be hidden when the text editor loses focus
-- Needs to support multiple Prosemirror instances on a single page. I believe this is the default behavior or correctly-constructed plugins, but may be worth mentioning, anyway.
+### Todo
 
 ### Buttons
 
 I'll need functionality for these buttons in the menu:
 
-- strong
-- em
+- strong (done)
+- em (done)
 - link
 - h3
 - h4
@@ -77,31 +39,3 @@ I'm not sure if key bindings fall within the scope of a menu plugin, but regardl
 - shift+enter for hard return
 
 
-
-
-
-```
-import { mymenu } from "./mymenu.js";
-```
-
-```
-let menu = mymenu([
-	{ command: whatever(), dom: '<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>' },
-	{ command: whatever(), label: '<em>Italic</em>' },
-	{ command: whatever(), label: '<i class="fal fa-heading"></i>' },
-	{ divider },
-	etc...
-]);
-```
-
-```
-let view = new EditorView(editorNode, {
-	state: EditorState.create({
-		doc: DOMParser.fromSchema(schema).parse(contentNode),
-		plugins: [
-			menu,
-			keybinding
-		]
-	});
-});
-```

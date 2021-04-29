@@ -1,5 +1,3 @@
-
-(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(window.document);
 (function () {
   'use strict';
 
@@ -6308,23 +6306,6 @@
     return name + "$"
   }
 
-  // ::- A key is used to [tag](#state.PluginSpec.key)
-  // plugins in a way that makes it possible to find them, given an
-  // editor state. Assigning a key does mean only one plugin of that
-  // type can be active in a state.
-  var PluginKey = function PluginKey(name) {
-  if ( name === void 0 ) name = "key";
-   this.key = createKey(name); };
-
-  // :: (EditorState) → ?Plugin
-  // Get the active plugin with this key, if any, from an editor
-  // state.
-  PluginKey.prototype.get = function get (state) { return state.config.pluginsByKey[this.key] };
-
-  // :: (EditorState) → ?any
-  // Get the plugin's state from an editor state.
-  PluginKey.prototype.getState = function getState (state) { return state[this.key] };
-
   var result = {};
 
   if (typeof navigator != "undefined" && typeof document != "undefined") {
@@ -6333,15 +6314,15 @@
     var ie_11up = /Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
 
     result.mac = /Mac/.test(navigator.platform);
-    var ie$1 = result.ie = !!(ie_upto10 || ie_11up || ie_edge);
+    var ie = result.ie = !!(ie_upto10 || ie_11up || ie_edge);
     result.ie_version = ie_upto10 ? document.documentMode || 6 : ie_11up ? +ie_11up[1] : ie_edge ? +ie_edge[1] : null;
-    result.gecko = !ie$1 && /gecko\/(\d+)/i.test(navigator.userAgent);
+    result.gecko = !ie && /gecko\/(\d+)/i.test(navigator.userAgent);
     result.gecko_version = result.gecko && +(/Firefox\/(\d+)/.exec(navigator.userAgent) || [0, 0])[1];
-    var chrome$1 = !ie$1 && /Chrome\/(\d+)/.exec(navigator.userAgent);
-    result.chrome = !!chrome$1;
-    result.chrome_version = chrome$1 && +chrome$1[1];
+    var chrome = !ie && /Chrome\/(\d+)/.exec(navigator.userAgent);
+    result.chrome = !!chrome;
+    result.chrome_version = chrome && +chrome[1];
     // Is true for both iOS and iPadOS for convenience
-    result.safari = !ie$1 && /Apple Computer/.test(navigator.vendor);
+    result.safari = !ie && /Apple Computer/.test(navigator.vendor);
     result.ios = result.safari && (/Mobile\/\w+/.test(navigator.userAgent) || navigator.maxTouchPoints > 2);
     result.android = /Android \d/.test(navigator.userAgent);
     result.webkit = "webkitFontSmoothing" in document.documentElement.style;
@@ -11922,31 +11903,6 @@
     return false
   }
 
-  // :: (NodeType, ?Object) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
-  // Returns a command that tries to set the selected textblocks to the
-  // given node type with the given attributes.
-  function setBlockType(nodeType, attrs) {
-    return function(state, dispatch) {
-      var ref = state.selection;
-      var from = ref.from;
-      var to = ref.to;
-      var applicable = false;
-      state.doc.nodesBetween(from, to, function (node, pos) {
-        if (applicable) { return false }
-        if (!node.isTextblock || node.hasMarkup(nodeType, attrs)) { return }
-        if (node.type == nodeType) {
-          applicable = true;
-        } else {
-          var $pos = state.doc.resolve(pos), index = $pos.index();
-          applicable = $pos.parent.canReplaceWith(index, index + 1, nodeType);
-        }
-      });
-      if (!applicable) { return false }
-      if (dispatch) { dispatch(state.tr.setBlockType(from, to, nodeType, attrs).scrollIntoView()); }
-      return true
-    }
-  }
-
   function markApplies(doc, ranges, type) {
     var loop = function ( i ) {
       var ref = ranges[i];
@@ -12046,7 +12002,7 @@
   // * **Delete** and **Mod-Delete** to `deleteSelection`, `joinForward`, `selectNodeForward`
   // * **Mod-Delete** to `deleteSelection`, `joinForward`, `selectNodeForward`
   // * **Mod-a** to `selectAll`
-  var pcBaseKeymap = {
+  ({
     "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlock),
     "Mod-Enter": exitCode,
     "Backspace": backspace,
@@ -12054,882 +12010,11 @@
     "Delete": del,
     "Mod-Delete": del,
     "Mod-a": selectAll
-  };
-
-  // :: Object
-  // A copy of `pcBaseKeymap` that also binds **Ctrl-h** like Backspace,
-  // **Ctrl-d** like Delete, **Alt-Backspace** like Ctrl-Backspace, and
-  // **Ctrl-Alt-Backspace**, **Alt-Delete**, and **Alt-d** like
-  // Ctrl-Delete.
-  var macBaseKeymap = {
-    "Ctrl-h": pcBaseKeymap["Backspace"],
-    "Alt-Backspace": pcBaseKeymap["Mod-Backspace"],
-    "Ctrl-d": pcBaseKeymap["Delete"],
-    "Ctrl-Alt-Backspace": pcBaseKeymap["Mod-Delete"],
-    "Alt-Delete": pcBaseKeymap["Mod-Delete"],
-    "Alt-d": pcBaseKeymap["Mod-Delete"]
-  };
-  for (var key in pcBaseKeymap) { macBaseKeymap[key] = pcBaseKeymap[key]; }
+  });
 
   // declare global: os, navigator
-  var mac$2 = typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
+  typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
             : typeof os != "undefined" ? os.platform() == "darwin" : false;
-
-  // :: Object
-  // Depending on the detected platform, this will hold
-  // [`pcBasekeymap`](#commands.pcBaseKeymap) or
-  // [`macBaseKeymap`](#commands.macBaseKeymap).
-  var baseKeymap = mac$2 ? macBaseKeymap : pcBaseKeymap;
-
-  var base = {
-    8: "Backspace",
-    9: "Tab",
-    10: "Enter",
-    12: "NumLock",
-    13: "Enter",
-    16: "Shift",
-    17: "Control",
-    18: "Alt",
-    20: "CapsLock",
-    27: "Escape",
-    32: " ",
-    33: "PageUp",
-    34: "PageDown",
-    35: "End",
-    36: "Home",
-    37: "ArrowLeft",
-    38: "ArrowUp",
-    39: "ArrowRight",
-    40: "ArrowDown",
-    44: "PrintScreen",
-    45: "Insert",
-    46: "Delete",
-    59: ";",
-    61: "=",
-    91: "Meta",
-    92: "Meta",
-    106: "*",
-    107: "+",
-    108: ",",
-    109: "-",
-    110: ".",
-    111: "/",
-    144: "NumLock",
-    145: "ScrollLock",
-    160: "Shift",
-    161: "Shift",
-    162: "Control",
-    163: "Control",
-    164: "Alt",
-    165: "Alt",
-    173: "-",
-    186: ";",
-    187: "=",
-    188: ",",
-    189: "-",
-    190: ".",
-    191: "/",
-    192: "`",
-    219: "[",
-    220: "\\",
-    221: "]",
-    222: "'",
-    229: "q"
-  };
-
-  var shift = {
-    48: ")",
-    49: "!",
-    50: "@",
-    51: "#",
-    52: "$",
-    53: "%",
-    54: "^",
-    55: "&",
-    56: "*",
-    57: "(",
-    59: ":",
-    61: "+",
-    173: "_",
-    186: ":",
-    187: "+",
-    188: "<",
-    189: "_",
-    190: ">",
-    191: "?",
-    192: "~",
-    219: "{",
-    220: "|",
-    221: "}",
-    222: "\"",
-    229: "Q"
-  };
-
-  var chrome = typeof navigator != "undefined" && /Chrome\/(\d+)/.exec(navigator.userAgent);
-  var safari = typeof navigator != "undefined" && /Apple Computer/.test(navigator.vendor);
-  var gecko = typeof navigator != "undefined" && /Gecko\/\d+/.test(navigator.userAgent);
-  var mac$1 = typeof navigator != "undefined" && /Mac/.test(navigator.platform);
-  var ie = typeof navigator != "undefined" && /MSIE \d|Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
-  var brokenModifierNames = chrome && (mac$1 || +chrome[1] < 57) || gecko && mac$1;
-
-  // Fill in the digit keys
-  for (var i = 0; i < 10; i++) base[48 + i] = base[96 + i] = String(i);
-
-  // The function keys
-  for (var i = 1; i <= 24; i++) base[i + 111] = "F" + i;
-
-  // And the alphabetic keys
-  for (var i = 65; i <= 90; i++) {
-    base[i] = String.fromCharCode(i + 32);
-    shift[i] = String.fromCharCode(i);
-  }
-
-  // For each code that doesn't have a shift-equivalent, copy the base name
-  for (var code in base) if (!shift.hasOwnProperty(code)) shift[code] = base[code];
-
-  function keyName(event) {
-    // Don't trust event.key in Chrome when there are modifiers until
-    // they fix https://bugs.chromium.org/p/chromium/issues/detail?id=633838
-    var ignoreKey = brokenModifierNames && (event.ctrlKey || event.altKey || event.metaKey) ||
-      (safari || ie) && event.shiftKey && event.key && event.key.length == 1;
-    var name = (!ignoreKey && event.key) ||
-      (event.shiftKey ? shift : base)[event.keyCode] ||
-      event.key || "Unidentified";
-    // Edge sometimes produces wrong names (Issue #3)
-    if (name == "Esc") name = "Escape";
-    if (name == "Del") name = "Delete";
-    // https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/8860571/
-    if (name == "Left") name = "ArrowLeft";
-    if (name == "Up") name = "ArrowUp";
-    if (name == "Right") name = "ArrowRight";
-    if (name == "Down") name = "ArrowDown";
-    return name
-  }
-
-  // declare global: navigator
-
-  var mac = typeof navigator != "undefined" ? /Mac/.test(navigator.platform) : false;
-
-  function normalizeKeyName(name) {
-    var parts = name.split(/-(?!$)/), result = parts[parts.length - 1];
-    if (result == "Space") { result = " "; }
-    var alt, ctrl, shift, meta;
-    for (var i = 0; i < parts.length - 1; i++) {
-      var mod = parts[i];
-      if (/^(cmd|meta|m)$/i.test(mod)) { meta = true; }
-      else if (/^a(lt)?$/i.test(mod)) { alt = true; }
-      else if (/^(c|ctrl|control)$/i.test(mod)) { ctrl = true; }
-      else if (/^s(hift)?$/i.test(mod)) { shift = true; }
-      else if (/^mod$/i.test(mod)) { if (mac) { meta = true; } else { ctrl = true; } }
-      else { throw new Error("Unrecognized modifier name: " + mod) }
-    }
-    if (alt) { result = "Alt-" + result; }
-    if (ctrl) { result = "Ctrl-" + result; }
-    if (meta) { result = "Meta-" + result; }
-    if (shift) { result = "Shift-" + result; }
-    return result
-  }
-
-  function normalize(map) {
-    var copy = Object.create(null);
-    for (var prop in map) { copy[normalizeKeyName(prop)] = map[prop]; }
-    return copy
-  }
-
-  function modifiers(name, event, shift) {
-    if (event.altKey) { name = "Alt-" + name; }
-    if (event.ctrlKey) { name = "Ctrl-" + name; }
-    if (event.metaKey) { name = "Meta-" + name; }
-    if (shift !== false && event.shiftKey) { name = "Shift-" + name; }
-    return name
-  }
-
-  // :: (Object) → Plugin
-  // Create a keymap plugin for the given set of bindings.
-  //
-  // Bindings should map key names to [command](#commands)-style
-  // functions, which will be called with `(EditorState, dispatch,
-  // EditorView)` arguments, and should return true when they've handled
-  // the key. Note that the view argument isn't part of the command
-  // protocol, but can be used as an escape hatch if a binding needs to
-  // directly interact with the UI.
-  //
-  // Key names may be strings like `"Shift-Ctrl-Enter"`—a key
-  // identifier prefixed with zero or more modifiers. Key identifiers
-  // are based on the strings that can appear in
-  // [`KeyEvent.key`](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key).
-  // Use lowercase letters to refer to letter keys (or uppercase letters
-  // if you want shift to be held). You may use `"Space"` as an alias
-  // for the `" "` name.
-  //
-  // Modifiers can be given in any order. `Shift-` (or `s-`), `Alt-` (or
-  // `a-`), `Ctrl-` (or `c-` or `Control-`) and `Cmd-` (or `m-` or
-  // `Meta-`) are recognized. For characters that are created by holding
-  // shift, the `Shift-` prefix is implied, and should not be added
-  // explicitly.
-  //
-  // You can use `Mod-` as a shorthand for `Cmd-` on Mac and `Ctrl-` on
-  // other platforms.
-  //
-  // You can add multiple keymap plugins to an editor. The order in
-  // which they appear determines their precedence (the ones early in
-  // the array get to dispatch first).
-  function keymap(bindings) {
-    return new Plugin({props: {handleKeyDown: keydownHandler(bindings)}})
-  }
-
-  // :: (Object) → (view: EditorView, event: dom.Event) → bool
-  // Given a set of bindings (using the same format as
-  // [`keymap`](#keymap.keymap), return a [keydown
-  // handler](#view.EditorProps.handleKeyDown) that handles them.
-  function keydownHandler(bindings) {
-    var map = normalize(bindings);
-    return function(view, event) {
-      var name = keyName(event), isChar = name.length == 1 && name != " ", baseName;
-      var direct = map[modifiers(name, event, !isChar)];
-      if (direct && direct(view.state, view.dispatch, view)) { return true }
-      if (isChar && (event.shiftKey || event.altKey || event.metaKey || name.charCodeAt(0) > 127) &&
-          (baseName = base[event.keyCode]) && baseName != name) {
-        // Try falling back to the keyCode when there's a modifier
-        // active or the character produced isn't ASCII, and our table
-        // produces a different name from the the keyCode. See #668,
-        // #1060
-        var fromCode = map[modifiers(baseName, event, true)];
-        if (fromCode && fromCode(view.state, view.dispatch, view)) { return true }
-      } else if (isChar && event.shiftKey) {
-        // Otherwise, if shift is active, also try the binding with the
-        // Shift- prefix enabled. See #997
-        var withShift = map[modifiers(name, event, true)];
-        if (withShift && withShift(view.state, view.dispatch, view)) { return true }
-      }
-      return false
-    }
-  }
-
-  var GOOD_LEAF_SIZE = 200;
-
-  // :: class<T> A rope sequence is a persistent sequence data structure
-  // that supports appending, prepending, and slicing without doing a
-  // full copy. It is represented as a mostly-balanced tree.
-  var RopeSequence = function RopeSequence () {};
-
-  RopeSequence.prototype.append = function append (other) {
-    if (!other.length) { return this }
-    other = RopeSequence.from(other);
-
-    return (!this.length && other) ||
-      (other.length < GOOD_LEAF_SIZE && this.leafAppend(other)) ||
-      (this.length < GOOD_LEAF_SIZE && other.leafPrepend(this)) ||
-      this.appendInner(other)
-  };
-
-  // :: (union<[T], RopeSequence<T>>) → RopeSequence<T>
-  // Prepend an array or other rope to this one, returning a new rope.
-  RopeSequence.prototype.prepend = function prepend (other) {
-    if (!other.length) { return this }
-    return RopeSequence.from(other).append(this)
-  };
-
-  RopeSequence.prototype.appendInner = function appendInner (other) {
-    return new Append(this, other)
-  };
-
-  // :: (?number, ?number) → RopeSequence<T>
-  // Create a rope repesenting a sub-sequence of this rope.
-  RopeSequence.prototype.slice = function slice (from, to) {
-      if ( from === void 0 ) from = 0;
-      if ( to === void 0 ) to = this.length;
-
-    if (from >= to) { return RopeSequence.empty }
-    return this.sliceInner(Math.max(0, from), Math.min(this.length, to))
-  };
-
-  // :: (number) → T
-  // Retrieve the element at the given position from this rope.
-  RopeSequence.prototype.get = function get (i) {
-    if (i < 0 || i >= this.length) { return undefined }
-    return this.getInner(i)
-  };
-
-  // :: ((element: T, index: number) → ?bool, ?number, ?number)
-  // Call the given function for each element between the given
-  // indices. This tends to be more efficient than looping over the
-  // indices and calling `get`, because it doesn't have to descend the
-  // tree for every element.
-  RopeSequence.prototype.forEach = function forEach (f, from, to) {
-      if ( from === void 0 ) from = 0;
-      if ( to === void 0 ) to = this.length;
-
-    if (from <= to)
-      { this.forEachInner(f, from, to, 0); }
-    else
-      { this.forEachInvertedInner(f, from, to, 0); }
-  };
-
-  // :: ((element: T, index: number) → U, ?number, ?number) → [U]
-  // Map the given functions over the elements of the rope, producing
-  // a flat array.
-  RopeSequence.prototype.map = function map (f, from, to) {
-      if ( from === void 0 ) from = 0;
-      if ( to === void 0 ) to = this.length;
-
-    var result = [];
-    this.forEach(function (elt, i) { return result.push(f(elt, i)); }, from, to);
-    return result
-  };
-
-  // :: (?union<[T], RopeSequence<T>>) → RopeSequence<T>
-  // Create a rope representing the given array, or return the rope
-  // itself if a rope was given.
-  RopeSequence.from = function from (values) {
-    if (values instanceof RopeSequence) { return values }
-    return values && values.length ? new Leaf(values) : RopeSequence.empty
-  };
-
-  var Leaf = /*@__PURE__*/(function (RopeSequence) {
-    function Leaf(values) {
-      RopeSequence.call(this);
-      this.values = values;
-    }
-
-    if ( RopeSequence ) Leaf.__proto__ = RopeSequence;
-    Leaf.prototype = Object.create( RopeSequence && RopeSequence.prototype );
-    Leaf.prototype.constructor = Leaf;
-
-    var prototypeAccessors = { length: { configurable: true },depth: { configurable: true } };
-
-    Leaf.prototype.flatten = function flatten () {
-      return this.values
-    };
-
-    Leaf.prototype.sliceInner = function sliceInner (from, to) {
-      if (from == 0 && to == this.length) { return this }
-      return new Leaf(this.values.slice(from, to))
-    };
-
-    Leaf.prototype.getInner = function getInner (i) {
-      return this.values[i]
-    };
-
-    Leaf.prototype.forEachInner = function forEachInner (f, from, to, start) {
-      for (var i = from; i < to; i++)
-        { if (f(this.values[i], start + i) === false) { return false } }
-    };
-
-    Leaf.prototype.forEachInvertedInner = function forEachInvertedInner (f, from, to, start) {
-      for (var i = from - 1; i >= to; i--)
-        { if (f(this.values[i], start + i) === false) { return false } }
-    };
-
-    Leaf.prototype.leafAppend = function leafAppend (other) {
-      if (this.length + other.length <= GOOD_LEAF_SIZE)
-        { return new Leaf(this.values.concat(other.flatten())) }
-    };
-
-    Leaf.prototype.leafPrepend = function leafPrepend (other) {
-      if (this.length + other.length <= GOOD_LEAF_SIZE)
-        { return new Leaf(other.flatten().concat(this.values)) }
-    };
-
-    prototypeAccessors.length.get = function () { return this.values.length };
-
-    prototypeAccessors.depth.get = function () { return 0 };
-
-    Object.defineProperties( Leaf.prototype, prototypeAccessors );
-
-    return Leaf;
-  }(RopeSequence));
-
-  // :: RopeSequence
-  // The empty rope sequence.
-  RopeSequence.empty = new Leaf([]);
-
-  var Append = /*@__PURE__*/(function (RopeSequence) {
-    function Append(left, right) {
-      RopeSequence.call(this);
-      this.left = left;
-      this.right = right;
-      this.length = left.length + right.length;
-      this.depth = Math.max(left.depth, right.depth) + 1;
-    }
-
-    if ( RopeSequence ) Append.__proto__ = RopeSequence;
-    Append.prototype = Object.create( RopeSequence && RopeSequence.prototype );
-    Append.prototype.constructor = Append;
-
-    Append.prototype.flatten = function flatten () {
-      return this.left.flatten().concat(this.right.flatten())
-    };
-
-    Append.prototype.getInner = function getInner (i) {
-      return i < this.left.length ? this.left.get(i) : this.right.get(i - this.left.length)
-    };
-
-    Append.prototype.forEachInner = function forEachInner (f, from, to, start) {
-      var leftLen = this.left.length;
-      if (from < leftLen &&
-          this.left.forEachInner(f, from, Math.min(to, leftLen), start) === false)
-        { return false }
-      if (to > leftLen &&
-          this.right.forEachInner(f, Math.max(from - leftLen, 0), Math.min(this.length, to) - leftLen, start + leftLen) === false)
-        { return false }
-    };
-
-    Append.prototype.forEachInvertedInner = function forEachInvertedInner (f, from, to, start) {
-      var leftLen = this.left.length;
-      if (from > leftLen &&
-          this.right.forEachInvertedInner(f, from - leftLen, Math.max(to, leftLen) - leftLen, start + leftLen) === false)
-        { return false }
-      if (to < leftLen &&
-          this.left.forEachInvertedInner(f, Math.min(from, leftLen), to, start) === false)
-        { return false }
-    };
-
-    Append.prototype.sliceInner = function sliceInner (from, to) {
-      if (from == 0 && to == this.length) { return this }
-      var leftLen = this.left.length;
-      if (to <= leftLen) { return this.left.slice(from, to) }
-      if (from >= leftLen) { return this.right.slice(from - leftLen, to - leftLen) }
-      return this.left.slice(from, leftLen).append(this.right.slice(0, to - leftLen))
-    };
-
-    Append.prototype.leafAppend = function leafAppend (other) {
-      var inner = this.right.leafAppend(other);
-      if (inner) { return new Append(this.left, inner) }
-    };
-
-    Append.prototype.leafPrepend = function leafPrepend (other) {
-      var inner = this.left.leafPrepend(other);
-      if (inner) { return new Append(inner, this.right) }
-    };
-
-    Append.prototype.appendInner = function appendInner (other) {
-      if (this.left.depth >= Math.max(this.right.depth, other.depth) + 1)
-        { return new Append(this.left, new Append(this.right, other)) }
-      return new Append(this, other)
-    };
-
-    return Append;
-  }(RopeSequence));
-
-  var ropeSequence = RopeSequence;
-
-  // ProseMirror's history isn't simply a way to roll back to a previous
-  // state, because ProseMirror supports applying changes without adding
-  // them to the history (for example during collaboration).
-  //
-  // To this end, each 'Branch' (one for the undo history and one for
-  // the redo history) keeps an array of 'Items', which can optionally
-  // hold a step (an actual undoable change), and always hold a position
-  // map (which is needed to move changes below them to apply to the
-  // current document).
-  //
-  // An item that has both a step and a selection bookmark is the start
-  // of an 'event' — a group of changes that will be undone or redone at
-  // once. (It stores only the bookmark, since that way we don't have to
-  // provide a document until the selection is actually applied, which
-  // is useful when compressing.)
-
-  // Used to schedule history compression
-  var max_empty_items = 500;
-
-  var Branch = function Branch(items, eventCount) {
-    this.items = items;
-    this.eventCount = eventCount;
-  };
-
-  // : (EditorState, bool) → ?{transform: Transform, selection: ?SelectionBookmark, remaining: Branch}
-  // Pop the latest event off the branch's history and apply it
-  // to a document transform.
-  Branch.prototype.popEvent = function popEvent (state, preserveItems) {
-      var this$1 = this;
-
-    if (this.eventCount == 0) { return null }
-
-    var end = this.items.length;
-    for (;; end--) {
-      var next = this.items.get(end - 1);
-      if (next.selection) { --end; break }
-    }
-
-    var remap, mapFrom;
-    if (preserveItems) {
-      remap = this.remapping(end, this.items.length);
-      mapFrom = remap.maps.length;
-    }
-    var transform = state.tr;
-    var selection, remaining;
-    var addAfter = [], addBefore = [];
-
-    this.items.forEach(function (item, i) {
-      if (!item.step) {
-        if (!remap) {
-          remap = this$1.remapping(end, i + 1);
-          mapFrom = remap.maps.length;
-        }
-        mapFrom--;
-        addBefore.push(item);
-        return
-      }
-
-      if (remap) {
-        addBefore.push(new Item(item.map));
-        var step = item.step.map(remap.slice(mapFrom)), map;
-
-        if (step && transform.maybeStep(step).doc) {
-          map = transform.mapping.maps[transform.mapping.maps.length - 1];
-          addAfter.push(new Item(map, null, null, addAfter.length + addBefore.length));
-        }
-        mapFrom--;
-        if (map) { remap.appendMap(map, mapFrom); }
-      } else {
-        transform.maybeStep(item.step);
-      }
-
-      if (item.selection) {
-        selection = remap ? item.selection.map(remap.slice(mapFrom)) : item.selection;
-        remaining = new Branch(this$1.items.slice(0, end).append(addBefore.reverse().concat(addAfter)), this$1.eventCount - 1);
-        return false
-      }
-    }, this.items.length, 0);
-
-    return {remaining: remaining, transform: transform, selection: selection}
-  };
-
-  // : (Transform, ?SelectionBookmark, Object) → Branch
-  // Create a new branch with the given transform added.
-  Branch.prototype.addTransform = function addTransform (transform, selection, histOptions, preserveItems) {
-    var newItems = [], eventCount = this.eventCount;
-    var oldItems = this.items, lastItem = !preserveItems && oldItems.length ? oldItems.get(oldItems.length - 1) : null;
-
-    for (var i = 0; i < transform.steps.length; i++) {
-      var step = transform.steps[i].invert(transform.docs[i]);
-      var item = new Item(transform.mapping.maps[i], step, selection), merged = (void 0);
-      if (merged = lastItem && lastItem.merge(item)) {
-        item = merged;
-        if (i) { newItems.pop(); }
-        else { oldItems = oldItems.slice(0, oldItems.length - 1); }
-      }
-      newItems.push(item);
-      if (selection) {
-        eventCount++;
-        selection = null;
-      }
-      if (!preserveItems) { lastItem = item; }
-    }
-    var overflow = eventCount - histOptions.depth;
-    if (overflow > DEPTH_OVERFLOW) {
-      oldItems = cutOffEvents(oldItems, overflow);
-      eventCount -= overflow;
-    }
-    return new Branch(oldItems.append(newItems), eventCount)
-  };
-
-  Branch.prototype.remapping = function remapping (from, to) {
-    var maps = new Mapping;
-    this.items.forEach(function (item, i) {
-      var mirrorPos = item.mirrorOffset != null && i - item.mirrorOffset >= from
-          ? maps.maps.length - item.mirrorOffset : null;
-      maps.appendMap(item.map, mirrorPos);
-    }, from, to);
-    return maps
-  };
-
-  Branch.prototype.addMaps = function addMaps (array) {
-    if (this.eventCount == 0) { return this }
-    return new Branch(this.items.append(array.map(function (map) { return new Item(map); })), this.eventCount)
-  };
-
-  // : (Transform, number)
-  // When the collab module receives remote changes, the history has
-  // to know about those, so that it can adjust the steps that were
-  // rebased on top of the remote changes, and include the position
-  // maps for the remote changes in its array of items.
-  Branch.prototype.rebased = function rebased (rebasedTransform, rebasedCount) {
-    if (!this.eventCount) { return this }
-
-    var rebasedItems = [], start = Math.max(0, this.items.length - rebasedCount);
-
-    var mapping = rebasedTransform.mapping;
-    var newUntil = rebasedTransform.steps.length;
-    var eventCount = this.eventCount;
-    this.items.forEach(function (item) { if (item.selection) { eventCount--; } }, start);
-
-    var iRebased = rebasedCount;
-    this.items.forEach(function (item) {
-      var pos = mapping.getMirror(--iRebased);
-      if (pos == null) { return }
-      newUntil = Math.min(newUntil, pos);
-      var map = mapping.maps[pos];
-      if (item.step) {
-        var step = rebasedTransform.steps[pos].invert(rebasedTransform.docs[pos]);
-        var selection = item.selection && item.selection.map(mapping.slice(iRebased + 1, pos));
-        if (selection) { eventCount++; }
-        rebasedItems.push(new Item(map, step, selection));
-      } else {
-        rebasedItems.push(new Item(map));
-      }
-    }, start);
-
-    var newMaps = [];
-    for (var i = rebasedCount; i < newUntil; i++)
-      { newMaps.push(new Item(mapping.maps[i])); }
-    var items = this.items.slice(0, start).append(newMaps).append(rebasedItems);
-    var branch = new Branch(items, eventCount);
-
-    if (branch.emptyItemCount() > max_empty_items)
-      { branch = branch.compress(this.items.length - rebasedItems.length); }
-    return branch
-  };
-
-  Branch.prototype.emptyItemCount = function emptyItemCount () {
-    var count = 0;
-    this.items.forEach(function (item) { if (!item.step) { count++; } });
-    return count
-  };
-
-  // Compressing a branch means rewriting it to push the air (map-only
-  // items) out. During collaboration, these naturally accumulate
-  // because each remote change adds one. The `upto` argument is used
-  // to ensure that only the items below a given level are compressed,
-  // because `rebased` relies on a clean, untouched set of items in
-  // order to associate old items with rebased steps.
-  Branch.prototype.compress = function compress (upto) {
-      if ( upto === void 0 ) upto = this.items.length;
-
-    var remap = this.remapping(0, upto), mapFrom = remap.maps.length;
-    var items = [], events = 0;
-    this.items.forEach(function (item, i) {
-      if (i >= upto) {
-        items.push(item);
-        if (item.selection) { events++; }
-      } else if (item.step) {
-        var step = item.step.map(remap.slice(mapFrom)), map = step && step.getMap();
-        mapFrom--;
-        if (map) { remap.appendMap(map, mapFrom); }
-        if (step) {
-          var selection = item.selection && item.selection.map(remap.slice(mapFrom));
-          if (selection) { events++; }
-          var newItem = new Item(map.invert(), step, selection), merged, last = items.length - 1;
-          if (merged = items.length && items[last].merge(newItem))
-            { items[last] = merged; }
-          else
-            { items.push(newItem); }
-        }
-      } else if (item.map) {
-        mapFrom--;
-      }
-    }, this.items.length, 0);
-    return new Branch(ropeSequence.from(items.reverse()), events)
-  };
-
-  Branch.empty = new Branch(ropeSequence.empty, 0);
-
-  function cutOffEvents(items, n) {
-    var cutPoint;
-    items.forEach(function (item, i) {
-      if (item.selection && (n-- == 0)) {
-        cutPoint = i;
-        return false
-      }
-    });
-    return items.slice(cutPoint)
-  }
-
-  var Item = function Item(map, step, selection, mirrorOffset) {
-    // The (forward) step map for this item.
-    this.map = map;
-    // The inverted step
-    this.step = step;
-    // If this is non-null, this item is the start of a group, and
-    // this selection is the starting selection for the group (the one
-    // that was active before the first step was applied)
-    this.selection = selection;
-    // If this item is the inverse of a previous mapping on the stack,
-    // this points at the inverse's offset
-    this.mirrorOffset = mirrorOffset;
-  };
-
-  Item.prototype.merge = function merge (other) {
-    if (this.step && other.step && !other.selection) {
-      var step = other.step.merge(this.step);
-      if (step) { return new Item(step.getMap().invert(), step, this.selection) }
-    }
-  };
-
-  // The value of the state field that tracks undo/redo history for that
-  // state. Will be stored in the plugin state when the history plugin
-  // is active.
-  var HistoryState = function HistoryState(done, undone, prevRanges, prevTime) {
-    this.done = done;
-    this.undone = undone;
-    this.prevRanges = prevRanges;
-    this.prevTime = prevTime;
-  };
-
-  var DEPTH_OVERFLOW = 20;
-
-  // : (HistoryState, EditorState, Transaction, Object)
-  // Record a transformation in undo history.
-  function applyTransaction(history, state, tr, options) {
-    var historyTr = tr.getMeta(historyKey), rebased;
-    if (historyTr) { return historyTr.historyState }
-
-    if (tr.getMeta(closeHistoryKey)) { history = new HistoryState(history.done, history.undone, null, 0); }
-
-    var appended = tr.getMeta("appendedTransaction");
-
-    if (tr.steps.length == 0) {
-      return history
-    } else if (appended && appended.getMeta(historyKey)) {
-      if (appended.getMeta(historyKey).redo)
-        { return new HistoryState(history.done.addTransform(tr, null, options, mustPreserveItems(state)),
-                                history.undone, rangesFor(tr.mapping.maps[tr.steps.length - 1]), history.prevTime) }
-      else
-        { return new HistoryState(history.done, history.undone.addTransform(tr, null, options, mustPreserveItems(state)),
-                                null, history.prevTime) }
-    } else if (tr.getMeta("addToHistory") !== false && !(appended && appended.getMeta("addToHistory") === false)) {
-      // Group transforms that occur in quick succession into one event.
-      var newGroup = history.prevTime == 0 || !appended && (history.prevTime < (tr.time || 0) - options.newGroupDelay ||
-                                                            !isAdjacentTo(tr, history.prevRanges));
-      var prevRanges = appended ? mapRanges(history.prevRanges, tr.mapping) : rangesFor(tr.mapping.maps[tr.steps.length - 1]);
-      return new HistoryState(history.done.addTransform(tr, newGroup ? state.selection.getBookmark() : null,
-                                                        options, mustPreserveItems(state)),
-                              Branch.empty, prevRanges, tr.time)
-    } else if (rebased = tr.getMeta("rebased")) {
-      // Used by the collab module to tell the history that some of its
-      // content has been rebased.
-      return new HistoryState(history.done.rebased(tr, rebased),
-                              history.undone.rebased(tr, rebased),
-                              mapRanges(history.prevRanges, tr.mapping), history.prevTime)
-    } else {
-      return new HistoryState(history.done.addMaps(tr.mapping.maps),
-                              history.undone.addMaps(tr.mapping.maps),
-                              mapRanges(history.prevRanges, tr.mapping), history.prevTime)
-    }
-  }
-
-  function isAdjacentTo(transform, prevRanges) {
-    if (!prevRanges) { return false }
-    if (!transform.docChanged) { return true }
-    var adjacent = false;
-    transform.mapping.maps[0].forEach(function (start, end) {
-      for (var i = 0; i < prevRanges.length; i += 2)
-        { if (start <= prevRanges[i + 1] && end >= prevRanges[i])
-          { adjacent = true; } }
-    });
-    return adjacent
-  }
-
-  function rangesFor(map) {
-    var result = [];
-    map.forEach(function (_from, _to, from, to) { return result.push(from, to); });
-    return result
-  }
-
-  function mapRanges(ranges, mapping) {
-    if (!ranges) { return null }
-    var result = [];
-    for (var i = 0; i < ranges.length; i += 2) {
-      var from = mapping.map(ranges[i], 1), to = mapping.map(ranges[i + 1], -1);
-      if (from <= to) { result.push(from, to); }
-    }
-    return result
-  }
-
-  // : (HistoryState, EditorState, (tr: Transaction), bool)
-  // Apply the latest event from one branch to the document and shift the event
-  // onto the other branch.
-  function histTransaction(history, state, dispatch, redo) {
-    var preserveItems = mustPreserveItems(state), histOptions = historyKey.get(state).spec.config;
-    var pop = (redo ? history.undone : history.done).popEvent(state, preserveItems);
-    if (!pop) { return }
-
-    var selection = pop.selection.resolve(pop.transform.doc);
-    var added = (redo ? history.done : history.undone).addTransform(pop.transform, state.selection.getBookmark(),
-                                                                    histOptions, preserveItems);
-
-    var newHist = new HistoryState(redo ? added : pop.remaining, redo ? pop.remaining : added, null, 0);
-    dispatch(pop.transform.setSelection(selection).setMeta(historyKey, {redo: redo, historyState: newHist}).scrollIntoView());
-  }
-
-  var cachedPreserveItems = false, cachedPreserveItemsPlugins = null;
-  // Check whether any plugin in the given state has a
-  // `historyPreserveItems` property in its spec, in which case we must
-  // preserve steps exactly as they came in, so that they can be
-  // rebased.
-  function mustPreserveItems(state) {
-    var plugins = state.plugins;
-    if (cachedPreserveItemsPlugins != plugins) {
-      cachedPreserveItems = false;
-      cachedPreserveItemsPlugins = plugins;
-      for (var i = 0; i < plugins.length; i++) { if (plugins[i].spec.historyPreserveItems) {
-        cachedPreserveItems = true;
-        break
-      } }
-    }
-    return cachedPreserveItems
-  }
-
-  var historyKey = new PluginKey("history");
-  var closeHistoryKey = new PluginKey("closeHistory");
-
-  // :: (?Object) → Plugin
-  // Returns a plugin that enables the undo history for an editor. The
-  // plugin will track undo and redo stacks, which can be used with the
-  // [`undo`](#history.undo) and [`redo`](#history.redo) commands.
-  //
-  // You can set an `"addToHistory"` [metadata
-  // property](#state.Transaction.setMeta) of `false` on a transaction
-  // to prevent it from being rolled back by undo.
-  //
-  //   config::-
-  //   Supports the following configuration options:
-  //
-  //     depth:: ?number
-  //     The amount of history events that are collected before the
-  //     oldest events are discarded. Defaults to 100.
-  //
-  //     newGroupDelay:: ?number
-  //     The delay between changes after which a new group should be
-  //     started. Defaults to 500 (milliseconds). Note that when changes
-  //     aren't adjacent, a new group is always started.
-  function history(config) {
-    config = {depth: config && config.depth || 100,
-              newGroupDelay: config && config.newGroupDelay || 500};
-    return new Plugin({
-      key: historyKey,
-
-      state: {
-        init: function init() {
-          return new HistoryState(Branch.empty, Branch.empty, null, 0)
-        },
-        apply: function apply(tr, hist, state) {
-          return applyTransaction(hist, state, tr, config)
-        }
-      },
-
-      config: config
-    })
-  }
-
-  // :: (EditorState, ?(tr: Transaction)) → bool
-  // A command function that undoes the last change, if any.
-  function undo(state, dispatch) {
-    var hist = historyKey.getState(state);
-    if (!hist || hist.done.eventCount == 0) { return false }
-    if (dispatch) { histTransaction(hist, state, dispatch, false); }
-    return true
-  }
-
-  // :: (EditorState, ?(tr: Transaction)) → bool
-  // A command function that redoes the last undone change, if any.
-  function redo(state, dispatch) {
-    var hist = historyKey.getState(state);
-    if (!hist || hist.undone.eventCount == 0) { return false }
-    if (dispatch) { histTransaction(hist, state, dispatch, true); }
-    return true
-  }
 
   class MenuView {
   	
@@ -12938,93 +12023,108 @@
   		this.items = items;
   		this.editorView = editorView;
   		
-  		// Get menu template from template bank
-  		let container = document.createElement('div');
-  		container.innerHTML = `<div class="textmenu js-textmenu">
-		
-		<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>
-		<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>
-		<div title="Link" class="textmenu__button textmenu__button--link js-link"><i class="fal fa-link"></i></div>
-		
-		<div class="textmenu__divider"></div>
-		
-		<div title="Heading 1" class="textmenu__button textmenu__button--heading1 js-heading1"><i class="fal fa-heading"></i></div>
-		<div title="Heading 2" class="textmenu__button textmenu__button--heading2 js-heading2"><i class="fal fa-heading"></i></div>
-		
-		<div class="textmenu__divider"></div>
-		
-		<div title="Bullet List" class="textmenu__button textmenu__button--list js-list"><i class="fal fa-list"></i></div>
-		<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>
-		<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>
-	
-	</div>`;
-  		this.dom = container.querySelector('*');
-  	
+  		this.dom = document.createElement('div');
+  		this.dom.className = "textmenu js-textmenu";
+  		
+  		// Run coversions on item array
+  		items.forEach(function(item, index) {
+  			// Convert strings to dom nodes
+  			if (typeof item.dom === "string") {
+  				let container = document.createElement('div');
+  				container.innerHTML = item.dom;
+  				items[index].dom = container.querySelector('*');
+  			}
+  			// Convert command shorthand
+  			if (item.command === "strong") {
+  				items[index].command = toggleMark(schema.marks.strong);
+  			} else if (item.command === "em") {
+  				items[index].command = toggleMark(schema.marks.em);
+  			}
+  		});
+  		
+  		// Append to container
+  		items.forEach(({dom}) => this.dom.appendChild(dom));
+  		
+  		// Update
+  		this.update(editorView, null);
+  		
+  		// Assign commands
   		this.dom.addEventListener('mousedown', e => {
-  	
   			e.preventDefault();
   			editorView.focus();
-  	
-  			let level;
-  			let container = editorView.dom.closest('.editor');
-  			const { $from, $to } = editorView.state.selection;
-  			const currentBlock = $from.parent;
-  						
-  			if (container.querySelector('.js-bold').contains(e.target)) {
-  			
-  				toggleMark(schema.marks.strong)(editorView.state, editorView.dispatch, editorView);
-  			
-  			} else if (container.querySelector('.js-italic').contains(e.target)) {
-  			
-  				toggleMark(schema.marks.em)(editorView.state, editorView.dispatch, editorView);
-  			
-  			} else if (container.querySelector('.js-heading1').contains(e.target)) {
-  				
-  				level = 2;
-  				if (currentBlock.type !== editorView.state.schema.nodes.heading || currentBlock.attrs['level'] !== level) {
-  					setBlockType(schema.nodes.heading, { level: level })(editorView.state, editorView.dispatch, editorView);
-  				} else {
-  					setBlockType(schema.nodes.paragraph)(editorView.state, editorView.dispatch, editorView);
-  				}
-  				
-  			} else if (container.querySelector('.js-heading2').contains(e.target)) { 
-  				
-  				level = 3;
-  				if (currentBlock.type !== editorView.state.schema.nodes.heading || currentBlock.attrs['level'] !== level) {
-  					setBlockType(schema.nodes.heading, { level: level })(editorView.state, editorView.dispatch, editorView);
-  				} else {
-  					setBlockType(schema.nodes.paragraph)(editorView.state, editorView.dispatch, editorView);
-  				}
-  				
-  			} else if (container.querySelector('.js-list').contains(e.target)) ; else if (container.querySelector('.js-quote').contains(e.target)) { 
-  				log('quote!');
-  				// if (currentBlock.type !== editorView.state.schema.nodes.blockquote) {
-  				// 	wrapIn(schema.nodes.blockquote)(editorView.state, editorView.dispatch, editorView);
-  				// } else {
-  				// 	let { tr } = editorView.state;
-  				// 	lift(schema.nodes.paragraph)(editorView.state, editorView.dispatch, editorView);
-  				// }
-  					
-  			}
-  			
-  			
-  		
+  			items.forEach(({command, dom}) => {
+  				if (dom.contains(e.target)) command(editorView.state, editorView.dispatch, editorView);
+  			});
   		});
+  	
   	}
   	
-  	// update() {
-  	// 	this.items.forEach(({command, dom}) => {
-  	// 		let active = command(this.editorView.state, null, this.editorView);
-  	// 		if (dom.style.display = active) {
-  	// 			dom.classList.remove('actove');
-  	// 		} else {
-  	// 			dom.classList.add('active');
-  	// 		}
-  	// 	});
-  	// }
+  	update() {
+  		
+  		// Set current styling to active
+  		this.items.forEach(({command, dom}) => {
+  			let active = command(this.editorView.state, null, this.editorView);
+  			if (dom.style.display == active) {
+  				dom.classList.remove('active');
+  			} else {
+  				dom.classList.add('active');
+  			}
+  		});
+  				
+  		let menu = this.editorView.dom.closest('.editor').querySelector('.js-textmenu');
+  		
+  		if (menu) {
+  		
+  			// Show/hide menu
+  			if (this.editorView.state.selection.empty) {
+  				menu.classList.remove('active');
+  			} else {
+  				menu.classList.add('active');
+  			}
+  			
+  			// Position menu
+  			let {from, to} = this.editorView.state.selection;
+  			let start = this.editorView.coordsAtPos(from), end = this.editorView.coordsAtPos(to);
+  			if (menu.offsetParent) {
+  				menu.offsetParent.getBoundingClientRect();
+  				let left = (start.left + end.left) / 2;
+  				menu.style.left = left + "px";
+  				menu.style.top = start.top - 60 + "px";		
+  			}
+  		
+  		}
+  		
+  	}
   	
   	destroy() { this.dom.remove(); }
   	
+  }
+
+  function menuPlugin(items) {
+  	return new Plugin({
+  		view(editorView) {
+  			let menuView = new MenuView(items, editorView);
+  			editorView.dom.parentNode.insertBefore(menuView.dom, editorView.dom);
+  			return menuView
+  		},
+  		props: {
+  			handleDOMEvents: {
+  				focus: (view, event) => {
+  					view.wasFocused = true;
+  					return false;
+  				},
+  				blur: (view, event) => {
+  					if (view.wasFocused) {
+  						let container = event.target.closest('.editor');
+  						container.classList.remove('focused');
+  						container.querySelector('.js-textmenu').classList.remove('active');
+  					}
+  					return false
+  				}
+  			}
+  		},
+  		appendTransaction(transaction, oldState, newState) { }
+  	})
   }
 
   // Get all elements that should contain an editor
@@ -13036,25 +12136,31 @@
   	let content = text.querySelector('.content');
   	let editor = text.querySelector('.editor');
   	
-  	let menu = menuPlugin();
+  	// Create instance of menu plugin
+  	let menu = menuPlugin([
+  		{
+  			command: 'strong',
+  			dom: '<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>',
+  		},
+  		{
+  			command: 'em',
+  			dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
+  		},
+  		{
+  			command: 'em',
+  			dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
+  		},
+  	]);
   	
+  	// Define state
   	let state = EditorState.create({
   		doc: DOMParser.fromSchema(schema).parse(content),
-  		// plugins: exampleSetup({ schema: schema })
   		plugins: [
-  			keymap({
-  				"Mod-z": undo,
-  				"Mod-y": redo,
-  				"Mod-b": toggleMark(schema.marks.strong),
-  				"Mod-i": toggleMark(schema.marks.em),
-  				"Shift-Enter": schema.nodes.hard_break.create()
-  			}),
-  			keymap(baseKeymap),
-  			history(),
   			menu
   		]
   	});
   	
+  	// Define view
   	let view = new EditorView(editor, {
   		state,
   		dispatchTransaction(transaction) {
@@ -13067,63 +12173,10 @@
   			// Save content
   			if (!previousState.eq(view.state.doc)) ;
   			
-  			let menu = view.dom.closest('.editor').querySelector('.js-textmenu');
-  			
-  			if (view.state.selection.empty) {
-  				menu.classList.remove('active');
-  			} else {
-  				menu.classList.add('active');
-  			}
-  			
-  			let {from, to} = view.state.selection;
-  			let start = view.coordsAtPos(from), end = view.coordsAtPos(to);
-  			
-  			if (menu.offsetParent) {
-  				
-  				// console.log(start.left, end.left);
-  			
-  				menu.offsetParent.getBoundingClientRect();
-  				// let left = Math.max((start.left + end.left) / 2, start.left + 3);
-  				let left = (start.left + end.left) / 2;
-  				// left = left - (menu.offsetWidth / 2);
-  							
-  				menu.style.left = left + "px";
-  				menu.style.top = start.top - 60 + "px";
-  				// menu.style.bottom = (box.bottom - start.top + 10) + "px";
-  				
-  			}
-  			
   		},
-  		handleDOMEvents: {
-  			focus: (view, event) => {
-  				let container = event.target.closest('.editor');
-  				view.wasFocused = true;
-  				container.classList.add('focused');
-  				// let id = event.target.closest('section').dataset.id;
-  				// tta.widgets.edit(id);
-  				return false;
-  			},
-  			blur: (view, event) => {
-  				if (view.wasFocused) {
-  					let container = event.target.closest('.editor');
-  					container.classList.remove('focused');
-  					container.querySelector('.js-textmenu').classList.remove('active');
-  				}
-  				return false;
-  			}
-  		}
+  		handleDOMEvents: {}
   	});
 
-  }
-
-  function menuPlugin(items) {
-  	return new Plugin({
-  		view(editorView) {
-  			let menuView = new MenuView(items, editorView);
-  			editorView.dom.parentNode.insertBefore(menuView.dom, editorView.dom);
-  			return menuView;
-  		}
-  	})
   }
 
 }());

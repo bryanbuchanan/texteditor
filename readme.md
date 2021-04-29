@@ -1,5 +1,5 @@
-# Prosemirror Plugin
+# Prosemirror Menu Plugin
 
-This is a quick, dirty, and incomplete draft of a custom Prosemirror menu plugin, to be used for visual illustration purposes only.
+work in progress
 
-<https://bryanbuchanan.github.io/texteditor/>
+Preview: <https://bryanbuchanan.github.io/texteditor/>
