@@ -1,6 +1,6 @@
 # Custom Prosemirror Menu Job Description
 
-I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working demo of the plugin so far can be viewed [here](https://github.com/bryanbuchanan/texteditor)
+I'm in need of assistance wrapping up a popup Prosemirror menu plugin. A working demo of the plugin so far can be viewed [here](https://bryanbuchanan.github.io/texteditor/)
 
 ### Todo/Scope
 
