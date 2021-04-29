@@ -4256,6 +4256,49 @@
                                            before.size - openStart, true))
   };
 
+  // :: (NodeRange, NodeType, ?Object, ?NodeRange) → ?[{type: NodeType, attrs: ?Object}]
+  // Try to find a valid way to wrap the content in the given range in a
+  // node of the given type. May introduce extra nodes around and inside
+  // the wrapper node, if necessary. Returns null if no valid wrapping
+  // could be found. When `innerRange` is given, that range's content is
+  // used as the content to fit into the wrapping, instead of the
+  // content of `range`.
+  function findWrapping(range, nodeType, attrs, innerRange) {
+    if ( innerRange === void 0 ) innerRange = range;
+
+    var around = findWrappingOutside(range, nodeType);
+    var inner = around && findWrappingInside(innerRange, nodeType);
+    if (!inner) { return null }
+    return around.map(withAttrs).concat({type: nodeType, attrs: attrs}).concat(inner.map(withAttrs))
+  }
+
+  function withAttrs(type) { return {type: type, attrs: null} }
+
+  function findWrappingOutside(range, type) {
+    var parent = range.parent;
+    var startIndex = range.startIndex;
+    var endIndex = range.endIndex;
+    var around = parent.contentMatchAt(startIndex).findWrapping(type);
+    if (!around) { return null }
+    var outer = around.length ? around[0] : type;
+    return parent.canReplaceWith(startIndex, endIndex, outer) ? around : null
+  }
+
+  function findWrappingInside(range, type) {
+    var parent = range.parent;
+    var startIndex = range.startIndex;
+    var endIndex = range.endIndex;
+    var inner = parent.child(startIndex);
+    var inside = type.contentMatch.findWrapping(inner.type);
+    if (!inside) { return null }
+    var lastType = inside.length ? inside[inside.length - 1] : type;
+    var innerMatch = lastType.contentMatch;
+    for (var i = startIndex; innerMatch && i < endIndex; i++)
+      { innerMatch = innerMatch.matchType(parent.child(i).type); }
+    if (!innerMatch || !innerMatch.validEnd) { return null }
+    return inside
+  }
+
   // :: (NodeRange, [{type: NodeType, attrs: ?Object}]) → this
   // Wrap the given [range](#model.NodeRange) in the given set of wrappers.
   // The wrappers are assumed to be valid in this position, and should
@@ -11922,6 +11965,23 @@
     return false
   }
 
+  // Parameterized commands
+
+  // :: (NodeType, ?Object) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
+  // Wrap the selection in a node of the given type with the given
+  // attributes.
+  function wrapIn(nodeType, attrs) {
+    return function(state, dispatch) {
+      var ref = state.selection;
+      var $from = ref.$from;
+      var $to = ref.$to;
+      var range = $from.blockRange($to), wrapping = range && findWrapping(range, nodeType, attrs);
+      if (!wrapping) { return false }
+      if (dispatch) { dispatch(state.tr.wrap(range, wrapping).scrollIntoView()); }
+      return true
+    }
+  }
+
   // :: (NodeType, ?Object) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
   // Returns a command that tries to set the selected textblocks to the
   // given node type with the given attributes.
@@ -12593,7 +12653,7 @@
   		let linkPrompt = container.querySelector('*');
   		this.dom.appendChild(linkPrompt);
   		
-  		// Run coversions on item array
+  		// Run conversions on item array
   		items.forEach((item, index) => {
   			// Convert strings to dom nodes
   			if (typeof item.dom === "string") {
@@ -12607,19 +12667,22 @@
   			} else if (item.command === "em") {
   				items[index].command = toggleMark(schema.marks.em);
   			} else if (item.command === "h2") {
-  				// TODO
+  				// TODO: Make button toggle block type, rather than only set it
   				items[index].command = setBlockType(schema.nodes.heading, { level: 2 });
   			} else if (item.command === "h3") {
-  				// TODO
+  				// TODO: Make button toggle block type, rather than only set it
   				items[index].command = setBlockType(schema.nodes.heading, { level: 3 });
   			} else if (item.command === "link") {
-  				// TODO
+  				// TODO: Open link input, create link on enter, close link prompt button, remove link if selected *is* link
   				items[index].command = () => {
   					console.log(editorView.dom.closest('*'));
   					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link');
   					};
+  			} else if (item.command === "blockquote") {
+  				// TODO: toggle functionality
+  				items[index].command = wrapIn(schema.nodes.blockquote);
   			}
-  			// TODO: Add ul, ol, hr, blockquote
+  			// TODO: Add ul, ol, hr, functionality
   		});
   		
   		// Append to container
@@ -12645,7 +12708,7 @@
   	
   	update() {
   		
-  		// Set menu buttons to 'active', if current selection matches
+  		// Set menu buttons to 'active', if current selection matches the command the button would assign
   		this.items.forEach(({command, dom}) => {
   			// TODO
   		});
@@ -12754,7 +12817,7 @@
   			dom: '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>'
   		},
   		{
-  			command: null,
+  			command: 'blockquote',
   			dom: '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>'
   		}
   	

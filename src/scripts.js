@@ -56,7 +56,7 @@ for (let text of texts) {
 			dom: '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>'
 		},
 		{
-			command: null,
+			command: 'blockquote',
 			dom: '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>'
 		}
 	

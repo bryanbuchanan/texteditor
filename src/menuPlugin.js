@@ -43,8 +43,11 @@ class MenuView {
 					console.log(editorView.dom.closest('*'))
 					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link')
 					}
+			} else if (item.command === "blockquote") {
+				// TODO: toggle functionality
+				items[index].command = wrapIn(schema.nodes.blockquote)
 			}
-			// TODO: Add ul, ol, hr, blockquote functionality
+			// TODO: Add ul, ol, hr, functionality
 		})
 		
 		// Append to container
