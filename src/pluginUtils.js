@@ -110,7 +110,11 @@ export const insertAtEnd = (editorView, type) => (_, dispatch) => {
 
 // Append "http" if doesnt exist
 const appendUrlPrefix = (url) =>
-  url.startsWith("http") ? url : `http://${url}`;
+  url.startsWith("http")
+    ? url
+    : url.startsWith("mailto:")
+    ? url
+    : `http://${url}`;
 
 // Build <a /> element and append it to editor
 const createAnchor = (linkProps, editorView, schema) => {
