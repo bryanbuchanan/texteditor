@@ -11773,6 +11773,19 @@
   }
 
   // :: (EditorState, ?(tr: Transaction)) → bool
+  // Lift the selected block, or the closest ancestor block of the
+  // selection that can be lifted, out of its parent node.
+  function lift(state, dispatch) {
+    var ref = state.selection;
+    var $from = ref.$from;
+    var $to = ref.$to;
+    var range = $from.blockRange($to), target = range && liftTarget(range);
+    if (target == null) { return false }
+    if (dispatch) { dispatch(state.tr.lift(range, target).scrollIntoView()); }
+    return true
+  }
+
+  // :: (EditorState, ?(tr: Transaction)) → bool
   // If the selection is in a node whose type has a truthy
   // [`code`](#model.NodeSpec.code) property in its spec, replace the
   // selection with a newline character.
@@ -12572,6 +12585,251 @@
     return Append;
   }(RopeSequence));
 
+  var ropeSequence = RopeSequence;
+
+  // ProseMirror's history isn't simply a way to roll back to a previous
+  // state, because ProseMirror supports applying changes without adding
+  // them to the history (for example during collaboration).
+  //
+  // To this end, each 'Branch' (one for the undo history and one for
+  // the redo history) keeps an array of 'Items', which can optionally
+  // hold a step (an actual undoable change), and always hold a position
+  // map (which is needed to move changes below them to apply to the
+  // current document).
+  //
+  // An item that has both a step and a selection bookmark is the start
+  // of an 'event' — a group of changes that will be undone or redone at
+  // once. (It stores only the bookmark, since that way we don't have to
+  // provide a document until the selection is actually applied, which
+  // is useful when compressing.)
+
+  // Used to schedule history compression
+  var max_empty_items = 500;
+
+  var Branch = function Branch(items, eventCount) {
+    this.items = items;
+    this.eventCount = eventCount;
+  };
+
+  // : (EditorState, bool) → ?{transform: Transform, selection: ?SelectionBookmark, remaining: Branch}
+  // Pop the latest event off the branch's history and apply it
+  // to a document transform.
+  Branch.prototype.popEvent = function popEvent (state, preserveItems) {
+      var this$1 = this;
+
+    if (this.eventCount == 0) { return null }
+
+    var end = this.items.length;
+    for (;; end--) {
+      var next = this.items.get(end - 1);
+      if (next.selection) { --end; break }
+    }
+
+    var remap, mapFrom;
+    if (preserveItems) {
+      remap = this.remapping(end, this.items.length);
+      mapFrom = remap.maps.length;
+    }
+    var transform = state.tr;
+    var selection, remaining;
+    var addAfter = [], addBefore = [];
+
+    this.items.forEach(function (item, i) {
+      if (!item.step) {
+        if (!remap) {
+          remap = this$1.remapping(end, i + 1);
+          mapFrom = remap.maps.length;
+        }
+        mapFrom--;
+        addBefore.push(item);
+        return
+      }
+
+      if (remap) {
+        addBefore.push(new Item(item.map));
+        var step = item.step.map(remap.slice(mapFrom)), map;
+
+        if (step && transform.maybeStep(step).doc) {
+          map = transform.mapping.maps[transform.mapping.maps.length - 1];
+          addAfter.push(new Item(map, null, null, addAfter.length + addBefore.length));
+        }
+        mapFrom--;
+        if (map) { remap.appendMap(map, mapFrom); }
+      } else {
+        transform.maybeStep(item.step);
+      }
+
+      if (item.selection) {
+        selection = remap ? item.selection.map(remap.slice(mapFrom)) : item.selection;
+        remaining = new Branch(this$1.items.slice(0, end).append(addBefore.reverse().concat(addAfter)), this$1.eventCount - 1);
+        return false
+      }
+    }, this.items.length, 0);
+
+    return {remaining: remaining, transform: transform, selection: selection}
+  };
+
+  // : (Transform, ?SelectionBookmark, Object) → Branch
+  // Create a new branch with the given transform added.
+  Branch.prototype.addTransform = function addTransform (transform, selection, histOptions, preserveItems) {
+    var newItems = [], eventCount = this.eventCount;
+    var oldItems = this.items, lastItem = !preserveItems && oldItems.length ? oldItems.get(oldItems.length - 1) : null;
+
+    for (var i = 0; i < transform.steps.length; i++) {
+      var step = transform.steps[i].invert(transform.docs[i]);
+      var item = new Item(transform.mapping.maps[i], step, selection), merged = (void 0);
+      if (merged = lastItem && lastItem.merge(item)) {
+        item = merged;
+        if (i) { newItems.pop(); }
+        else { oldItems = oldItems.slice(0, oldItems.length - 1); }
+      }
+      newItems.push(item);
+      if (selection) {
+        eventCount++;
+        selection = null;
+      }
+      if (!preserveItems) { lastItem = item; }
+    }
+    var overflow = eventCount - histOptions.depth;
+    if (overflow > DEPTH_OVERFLOW) {
+      oldItems = cutOffEvents(oldItems, overflow);
+      eventCount -= overflow;
+    }
+    return new Branch(oldItems.append(newItems), eventCount)
+  };
+
+  Branch.prototype.remapping = function remapping (from, to) {
+    var maps = new Mapping;
+    this.items.forEach(function (item, i) {
+      var mirrorPos = item.mirrorOffset != null && i - item.mirrorOffset >= from
+          ? maps.maps.length - item.mirrorOffset : null;
+      maps.appendMap(item.map, mirrorPos);
+    }, from, to);
+    return maps
+  };
+
+  Branch.prototype.addMaps = function addMaps (array) {
+    if (this.eventCount == 0) { return this }
+    return new Branch(this.items.append(array.map(function (map) { return new Item(map); })), this.eventCount)
+  };
+
+  // : (Transform, number)
+  // When the collab module receives remote changes, the history has
+  // to know about those, so that it can adjust the steps that were
+  // rebased on top of the remote changes, and include the position
+  // maps for the remote changes in its array of items.
+  Branch.prototype.rebased = function rebased (rebasedTransform, rebasedCount) {
+    if (!this.eventCount) { return this }
+
+    var rebasedItems = [], start = Math.max(0, this.items.length - rebasedCount);
+
+    var mapping = rebasedTransform.mapping;
+    var newUntil = rebasedTransform.steps.length;
+    var eventCount = this.eventCount;
+    this.items.forEach(function (item) { if (item.selection) { eventCount--; } }, start);
+
+    var iRebased = rebasedCount;
+    this.items.forEach(function (item) {
+      var pos = mapping.getMirror(--iRebased);
+      if (pos == null) { return }
+      newUntil = Math.min(newUntil, pos);
+      var map = mapping.maps[pos];
+      if (item.step) {
+        var step = rebasedTransform.steps[pos].invert(rebasedTransform.docs[pos]);
+        var selection = item.selection && item.selection.map(mapping.slice(iRebased + 1, pos));
+        if (selection) { eventCount++; }
+        rebasedItems.push(new Item(map, step, selection));
+      } else {
+        rebasedItems.push(new Item(map));
+      }
+    }, start);
+
+    var newMaps = [];
+    for (var i = rebasedCount; i < newUntil; i++)
+      { newMaps.push(new Item(mapping.maps[i])); }
+    var items = this.items.slice(0, start).append(newMaps).append(rebasedItems);
+    var branch = new Branch(items, eventCount);
+
+    if (branch.emptyItemCount() > max_empty_items)
+      { branch = branch.compress(this.items.length - rebasedItems.length); }
+    return branch
+  };
+
+  Branch.prototype.emptyItemCount = function emptyItemCount () {
+    var count = 0;
+    this.items.forEach(function (item) { if (!item.step) { count++; } });
+    return count
+  };
+
+  // Compressing a branch means rewriting it to push the air (map-only
+  // items) out. During collaboration, these naturally accumulate
+  // because each remote change adds one. The `upto` argument is used
+  // to ensure that only the items below a given level are compressed,
+  // because `rebased` relies on a clean, untouched set of items in
+  // order to associate old items with rebased steps.
+  Branch.prototype.compress = function compress (upto) {
+      if ( upto === void 0 ) upto = this.items.length;
+
+    var remap = this.remapping(0, upto), mapFrom = remap.maps.length;
+    var items = [], events = 0;
+    this.items.forEach(function (item, i) {
+      if (i >= upto) {
+        items.push(item);
+        if (item.selection) { events++; }
+      } else if (item.step) {
+        var step = item.step.map(remap.slice(mapFrom)), map = step && step.getMap();
+        mapFrom--;
+        if (map) { remap.appendMap(map, mapFrom); }
+        if (step) {
+          var selection = item.selection && item.selection.map(remap.slice(mapFrom));
+          if (selection) { events++; }
+          var newItem = new Item(map.invert(), step, selection), merged, last = items.length - 1;
+          if (merged = items.length && items[last].merge(newItem))
+            { items[last] = merged; }
+          else
+            { items.push(newItem); }
+        }
+      } else if (item.map) {
+        mapFrom--;
+      }
+    }, this.items.length, 0);
+    return new Branch(ropeSequence.from(items.reverse()), events)
+  };
+
+  Branch.empty = new Branch(ropeSequence.empty, 0);
+
+  function cutOffEvents(items, n) {
+    var cutPoint;
+    items.forEach(function (item, i) {
+      if (item.selection && (n-- == 0)) {
+        cutPoint = i;
+        return false
+      }
+    });
+    return items.slice(cutPoint)
+  }
+
+  var Item = function Item(map, step, selection, mirrorOffset) {
+    // The (forward) step map for this item.
+    this.map = map;
+    // The inverted step
+    this.step = step;
+    // If this is non-null, this item is the start of a group, and
+    // this selection is the starting selection for the group (the one
+    // that was active before the first step was applied)
+    this.selection = selection;
+    // If this item is the inverse of a previous mapping on the stack,
+    // this points at the inverse's offset
+    this.mirrorOffset = mirrorOffset;
+  };
+
+  Item.prototype.merge = function merge (other) {
+    if (this.step && other.step && !other.selection) {
+      var step = other.step.merge(this.step);
+      if (step) { return new Item(step.getMap().invert(), step, this.selection) }
+    }
+  };
+
   // The value of the state field that tracks undo/redo history for that
   // state. Will be stored in the plugin state when the history plugin
   // is active.
@@ -12581,6 +12839,76 @@
     this.prevRanges = prevRanges;
     this.prevTime = prevTime;
   };
+
+  var DEPTH_OVERFLOW = 20;
+
+  // : (HistoryState, EditorState, Transaction, Object)
+  // Record a transformation in undo history.
+  function applyTransaction(history, state, tr, options) {
+    var historyTr = tr.getMeta(historyKey), rebased;
+    if (historyTr) { return historyTr.historyState }
+
+    if (tr.getMeta(closeHistoryKey)) { history = new HistoryState(history.done, history.undone, null, 0); }
+
+    var appended = tr.getMeta("appendedTransaction");
+
+    if (tr.steps.length == 0) {
+      return history
+    } else if (appended && appended.getMeta(historyKey)) {
+      if (appended.getMeta(historyKey).redo)
+        { return new HistoryState(history.done.addTransform(tr, null, options, mustPreserveItems(state)),
+                                history.undone, rangesFor(tr.mapping.maps[tr.steps.length - 1]), history.prevTime) }
+      else
+        { return new HistoryState(history.done, history.undone.addTransform(tr, null, options, mustPreserveItems(state)),
+                                null, history.prevTime) }
+    } else if (tr.getMeta("addToHistory") !== false && !(appended && appended.getMeta("addToHistory") === false)) {
+      // Group transforms that occur in quick succession into one event.
+      var newGroup = history.prevTime == 0 || !appended && (history.prevTime < (tr.time || 0) - options.newGroupDelay ||
+                                                            !isAdjacentTo(tr, history.prevRanges));
+      var prevRanges = appended ? mapRanges(history.prevRanges, tr.mapping) : rangesFor(tr.mapping.maps[tr.steps.length - 1]);
+      return new HistoryState(history.done.addTransform(tr, newGroup ? state.selection.getBookmark() : null,
+                                                        options, mustPreserveItems(state)),
+                              Branch.empty, prevRanges, tr.time)
+    } else if (rebased = tr.getMeta("rebased")) {
+      // Used by the collab module to tell the history that some of its
+      // content has been rebased.
+      return new HistoryState(history.done.rebased(tr, rebased),
+                              history.undone.rebased(tr, rebased),
+                              mapRanges(history.prevRanges, tr.mapping), history.prevTime)
+    } else {
+      return new HistoryState(history.done.addMaps(tr.mapping.maps),
+                              history.undone.addMaps(tr.mapping.maps),
+                              mapRanges(history.prevRanges, tr.mapping), history.prevTime)
+    }
+  }
+
+  function isAdjacentTo(transform, prevRanges) {
+    if (!prevRanges) { return false }
+    if (!transform.docChanged) { return true }
+    var adjacent = false;
+    transform.mapping.maps[0].forEach(function (start, end) {
+      for (var i = 0; i < prevRanges.length; i += 2)
+        { if (start <= prevRanges[i + 1] && end >= prevRanges[i])
+          { adjacent = true; } }
+    });
+    return adjacent
+  }
+
+  function rangesFor(map) {
+    var result = [];
+    map.forEach(function (_from, _to, from, to) { return result.push(from, to); });
+    return result
+  }
+
+  function mapRanges(ranges, mapping) {
+    if (!ranges) { return null }
+    var result = [];
+    for (var i = 0; i < ranges.length; i += 2) {
+      var from = mapping.map(ranges[i], 1), to = mapping.map(ranges[i + 1], -1);
+      if (from <= to) { result.push(from, to); }
+    }
+    return result
+  }
 
   // : (HistoryState, EditorState, (tr: Transaction), bool)
   // Apply the latest event from one branch to the document and shift the event
@@ -12617,7 +12945,46 @@
   }
 
   var historyKey = new PluginKey("history");
-  new PluginKey("closeHistory");
+  var closeHistoryKey = new PluginKey("closeHistory");
+
+  // :: (?Object) → Plugin
+  // Returns a plugin that enables the undo history for an editor. The
+  // plugin will track undo and redo stacks, which can be used with the
+  // [`undo`](#history.undo) and [`redo`](#history.redo) commands.
+  //
+  // You can set an `"addToHistory"` [metadata
+  // property](#state.Transaction.setMeta) of `false` on a transaction
+  // to prevent it from being rolled back by undo.
+  //
+  //   config::-
+  //   Supports the following configuration options:
+  //
+  //     depth:: ?number
+  //     The amount of history events that are collected before the
+  //     oldest events are discarded. Defaults to 100.
+  //
+  //     newGroupDelay:: ?number
+  //     The delay between changes after which a new group should be
+  //     started. Defaults to 500 (milliseconds). Note that when changes
+  //     aren't adjacent, a new group is always started.
+  function history(config) {
+    config = {depth: config && config.depth || 100,
+              newGroupDelay: config && config.newGroupDelay || 500};
+    return new Plugin({
+      key: historyKey,
+
+      state: {
+        init: function init() {
+          return new HistoryState(Branch.empty, Branch.empty, null, 0)
+        },
+        apply: function apply(tr, hist, state) {
+          return applyTransaction(hist, state, tr, config)
+        }
+      },
+
+      config: config
+    })
+  }
 
   // :: (EditorState, ?(tr: Transaction)) → bool
   // A command function that undoes the last change, if any.
@@ -12637,226 +13004,676 @@
     return true
   }
 
+  var olDOM = ["ol", 0], ulDOM = ["ul", 0], liDOM = ["li", 0];
+
+  // :: NodeSpec
+  // An ordered list [node spec](#model.NodeSpec). Has a single
+  // attribute, `order`, which determines the number at which the list
+  // starts counting, and defaults to 1. Represented as an `<ol>`
+  // element.
+  var orderedList = {
+    attrs: {order: {default: 1}},
+    parseDOM: [{tag: "ol", getAttrs: function getAttrs(dom) {
+      return {order: dom.hasAttribute("start") ? +dom.getAttribute("start") : 1}
+    }}],
+    toDOM: function toDOM(node) {
+      return node.attrs.order == 1 ? olDOM : ["ol", {start: node.attrs.order}, 0]
+    }
+  };
+
+  // :: NodeSpec
+  // A bullet list node spec, represented in the DOM as `<ul>`.
+  var bulletList = {
+    parseDOM: [{tag: "ul"}],
+    toDOM: function toDOM() { return ulDOM }
+  };
+
+  // :: NodeSpec
+  // A list item (`<li>`) spec.
+  var listItem = {
+    parseDOM: [{tag: "li"}],
+    toDOM: function toDOM() { return liDOM },
+    defining: true
+  };
+
+  function add(obj, props) {
+    var copy = {};
+    for (var prop in obj) { copy[prop] = obj[prop]; }
+    for (var prop$1 in props) { copy[prop$1] = props[prop$1]; }
+    return copy
+  }
+
+  // :: (OrderedMap<NodeSpec>, string, ?string) → OrderedMap<NodeSpec>
+  // Convenience function for adding list-related node types to a map
+  // specifying the nodes for a schema. Adds
+  // [`orderedList`](#schema-list.orderedList) as `"ordered_list"`,
+  // [`bulletList`](#schema-list.bulletList) as `"bullet_list"`, and
+  // [`listItem`](#schema-list.listItem) as `"list_item"`.
+  //
+  // `itemContent` determines the content expression for the list items.
+  // If you want the commands defined in this module to apply to your
+  // list structure, it should have a shape like `"paragraph block*"` or
+  // `"paragraph (ordered_list | bullet_list)*"`. `listGroup` can be
+  // given to assign a group name to the list node types, for example
+  // `"block"`.
+  function addListNodes(nodes, itemContent, listGroup) {
+    return nodes.append({
+      ordered_list: add(orderedList, {content: "list_item+", group: listGroup}),
+      bullet_list: add(bulletList, {content: "list_item+", group: listGroup}),
+      list_item: add(listItem, {content: itemContent})
+    })
+  }
+
+  // :: (NodeType, ?Object) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
+  // Returns a command function that wraps the selection in a list with
+  // the given type an attributes. If `dispatch` is null, only return a
+  // value to indicate whether this is possible, but don't actually
+  // perform the change.
+  function wrapInList(listType, attrs) {
+    return function(state, dispatch) {
+      var ref = state.selection;
+      var $from = ref.$from;
+      var $to = ref.$to;
+      var range = $from.blockRange($to), doJoin = false, outerRange = range;
+      if (!range) { return false }
+      // This is at the top of an existing list item
+      if (range.depth >= 2 && $from.node(range.depth - 1).type.compatibleContent(listType) && range.startIndex == 0) {
+        // Don't do anything if this is the top of the list
+        if ($from.index(range.depth - 1) == 0) { return false }
+        var $insert = state.doc.resolve(range.start - 2);
+        outerRange = new NodeRange($insert, $insert, range.depth);
+        if (range.endIndex < range.parent.childCount)
+          { range = new NodeRange($from, state.doc.resolve($to.end(range.depth)), range.depth); }
+        doJoin = true;
+      }
+      var wrap = findWrapping(outerRange, listType, attrs, range);
+      if (!wrap) { return false }
+      if (dispatch) { dispatch(doWrapInList(state.tr, range, wrap, doJoin, listType).scrollIntoView()); }
+      return true
+    }
+  }
+
+  function doWrapInList(tr, range, wrappers, joinBefore, listType) {
+    var content = Fragment.empty;
+    for (var i = wrappers.length - 1; i >= 0; i--)
+      { content = Fragment.from(wrappers[i].type.create(wrappers[i].attrs, content)); }
+
+    tr.step(new ReplaceAroundStep(range.start - (joinBefore ? 2 : 0), range.end, range.start, range.end,
+                                  new Slice(content, 0, 0), wrappers.length, true));
+
+    var found = 0;
+    for (var i$1 = 0; i$1 < wrappers.length; i$1++) { if (wrappers[i$1].type == listType) { found = i$1 + 1; } }
+    var splitDepth = wrappers.length - found;
+
+    var splitPos = range.start + wrappers.length - (joinBefore ? 2 : 0), parent = range.parent;
+    for (var i$2 = range.startIndex, e = range.endIndex, first = true; i$2 < e; i$2++, first = false) {
+      if (!first && canSplit(tr.doc, splitPos, splitDepth)) {
+        tr.split(splitPos, splitDepth);
+        splitPos += 2 * splitDepth;
+      }
+      splitPos += parent.child(i$2).nodeSize;
+    }
+    return tr
+  }
+
+  // :: (NodeType) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
+  // Create a command to lift the list item around the selection up into
+  // a wrapping list.
+  function liftListItem(itemType) {
+    return function(state, dispatch) {
+      var ref = state.selection;
+      var $from = ref.$from;
+      var $to = ref.$to;
+      var range = $from.blockRange($to, function (node) { return node.childCount && node.firstChild.type == itemType; });
+      if (!range) { return false }
+      if (!dispatch) { return true }
+      if ($from.node(range.depth - 1).type == itemType) // Inside a parent list
+        { return liftToOuterList(state, dispatch, itemType, range) }
+      else // Outer list node
+        { return liftOutOfList(state, dispatch, range) }
+    }
+  }
+
+  function liftToOuterList(state, dispatch, itemType, range) {
+    var tr = state.tr, end = range.end, endOfList = range.$to.end(range.depth);
+    if (end < endOfList) {
+      // There are siblings after the lifted items, which must become
+      // children of the last item
+      tr.step(new ReplaceAroundStep(end - 1, endOfList, end, endOfList,
+                                    new Slice(Fragment.from(itemType.create(null, range.parent.copy())), 1, 0), 1, true));
+      range = new NodeRange(tr.doc.resolve(range.$from.pos), tr.doc.resolve(endOfList), range.depth);
+    }
+    dispatch(tr.lift(range, liftTarget(range)).scrollIntoView());
+    return true
+  }
+
+  function liftOutOfList(state, dispatch, range) {
+    var tr = state.tr, list = range.parent;
+    // Merge the list items into a single big item
+    for (var pos = range.end, i = range.endIndex - 1, e = range.startIndex; i > e; i--) {
+      pos -= list.child(i).nodeSize;
+      tr.delete(pos - 1, pos + 1);
+    }
+    var $start = tr.doc.resolve(range.start), item = $start.nodeAfter;
+    var atStart = range.startIndex == 0, atEnd = range.endIndex == list.childCount;
+    var parent = $start.node(-1), indexBefore = $start.index(-1);
+    if (!parent.canReplace(indexBefore + (atStart ? 0 : 1), indexBefore + 1,
+                           item.content.append(atEnd ? Fragment.empty : Fragment.from(list))))
+      { return false }
+    var start = $start.pos, end = start + item.nodeSize;
+    // Strip off the surrounding list. At the sides where we're not at
+    // the end of the list, the existing list is closed. At sides where
+    // this is the end, it is overwritten to its end.
+    tr.step(new ReplaceAroundStep(start - (atStart ? 1 : 0), end + (atEnd ? 1 : 0), start + 1, end - 1,
+                                  new Slice((atStart ? Fragment.empty : Fragment.from(list.copy(Fragment.empty)))
+                                            .append(atEnd ? Fragment.empty : Fragment.from(list.copy(Fragment.empty))),
+                                            atStart ? 0 : 1, atEnd ? 0 : 1), atStart ? 0 : 1));
+    dispatch(tr.scrollIntoView());
+    return true
+  }
+
+  // Utility in place of native chainCommands, to prevent it from stopping on first truthy value
+  function chainTransactions(...commands) {
+    return (state, dispatch) => {
+      const dispatcher = (tr) => {
+        state = state.apply(tr);
+        dispatch(tr);
+      };
+      const last = commands.pop();
+      const reduced = commands.reduce((result, command) => {
+        return result || command(state, dispatcher);
+      }, false);
+      return reduced && last !== undefined && last(state, dispatch);
+    };
+  }
+
+  // Check if selection has an active type
+  const generalActiveCheck = (type, options = {}) => (state) => {
+    const schema = state.schema;
+    const { $from, $head, to, $to, node } = state.selection;
+    let hasMarkup;
+
+    hasMarkup =
+      node?.hasMarkup(schema.nodes[type], options) ||
+      $head.marks().some((v) => v.type.name === type?.name) ||
+      (to <= $from.end() && $from.parent.hasMarkup(type, options));
+
+    // handle wrapins
+    if (["block+", "list_item+"].includes(type.spec.content)) {
+      const parent = $from.node(1);
+      hasMarkup = parent?.type.name === type?.name;
+    }
+
+    // check link
+    if (type.name === "link") {
+      hasMarkup = state.doc.rangeHasMark($from.pos, $to.pos, schema.marks.link);
+    }
+
+    return hasMarkup;
+  };
+
+  const selfClosingListener = (element, eventType, callback) => {
+    function handler(ev) {
+      callback(ev);
+      element.removeEventListener(eventType, handler);
+    }
+    element.addEventListener(eventType, handler);
+  };
+
+  // Abstraction to toggle supported block types on and off
+  const toggleBlockType = (editorView, type, options = {}) => (
+    state,
+    dispatch
+  ) => {
+    const { schema } = editorView.state;
+
+    return generalActiveCheck(schema.nodes[type], options)(state, dispatch)
+      ? setBlockType(schema.nodes.paragraph)(state, dispatch)
+      : setBlockType(schema.nodes[type], options)(state, dispatch);
+  };
+
+  // Abstraction to toggle wrappers on and off
+  const toggleWrapIn = (editorView, type) => (state, dispatch) => {
+    const schema = editorView.state.schema;
+    const hasSpecificWrapper = generalActiveCheck(schema.nodes[type])(
+      state,
+      dispatch
+    );
+
+    // handle list toggling
+    if (type.includes("list")) {
+      const oppositeListType =
+        type === "bullet_list" ? "ordered_list" : "bullet_list";
+      const isOpposite = generalActiveCheck(schema.nodes[oppositeListType])(
+        state,
+        dispatch
+      );
+      const switchListType = () =>
+        chainTransactions(
+          liftListItem(schema.nodes.list_item),
+          wrapInList(schema.nodes[type])
+        )(state, dispatch);
+
+      return isOpposite
+        ? switchListType()
+        : hasSpecificWrapper
+        ? liftListItem(schema.nodes.list_item)(state, dispatch)
+        : wrapInList(schema.nodes[type])(state, dispatch);
+    }
+
+    return hasSpecificWrapper
+      ? lift(state, dispatch)
+      : wrapIn(schema.nodes[type])(state, dispatch);
+  };
+
+  // Insert node at the end of the selection
+  const insertAtEnd = (editorView, type) => (_, dispatch) => {
+    const schema = editorView.state.schema;
+    const { to } = editorView.state.selection;
+    const tr = editorView.state.tr;
+    const node = schema.nodes[type].create();
+
+    tr.insert(to, node);
+    return dispatch(tr);
+  };
+
+  // ==== link utils
+
+  // Append "http" if doesnt exist
+  const appendUrlPrefix = (url) =>
+    url.startsWith("http")
+      ? url
+      : url.startsWith("mailto:")
+      ? url
+      : `http://${url}`;
+
+  // Build <a /> element and append it to editor
+  const createAnchor = (linkProps, editorView, schema) => {
+    const node = schema.text(linkProps.title, [
+      schema.marks.link.create({
+        ...linkProps,
+        href: appendUrlPrefix(linkProps.href),
+      }),
+    ]);
+    return editorView.dispatch(
+      editorView.state.tr.replaceSelectionWith(node, false)
+    );
+  };
+
+  // Hide input menu
+  const hideLinkInput = (editorView) =>
+    editorView.dom
+      .closest(".editor")
+      .querySelector(".js-textmenu")
+      .classList.remove("link");
+
+  const resetInput = (editorView, input) => {
+    hideLinkInput(editorView);
+    input.value = "";
+    editorView.focus();
+  };
+
+  const handleLinkInputSubmit = (editorView, schema, selectedText, input) => (
+    ev
+  ) => {
+    if (ev.key === "Enter") {
+      const { value } = ev.target;
+      const url = appendUrlPrefix(value);
+      createAnchor({ href: url, title: selectedText }, editorView, schema);
+      resetInput(editorView, input);
+    } else if (ev.key === "Escape") {
+      resetInput(editorView, input);
+    }
+  };
+
+  // handles link creation
+  const linkHandler = (editorView) => (state, dispatch) => {
+    const schema = editorView.state.schema;
+    const { $from, from, to, $to } = editorView.state.selection;
+
+    const isLink = editorView.state.doc.rangeHasMark(
+      $from.pos,
+      $to.pos,
+      schema.marks.link
+    );
+    // remove link if it already exists
+    if (isLink) {
+      return toggleMark(schema.marks.link)(state, dispatch);
+    }
+
+    const input = document.querySelector(".textmenu__linkinput");
+
+    const selectionFragment = editorView.state.doc.cut(from, to);
+    const selectedText = selectionFragment.textContent;
+
+    // automatically replace with href if plain text has a link format
+    const urlRegex = new RegExp(
+      "(https?://(?:www.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9].[^s]{2,}|www.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9].[^s]{2,}|https?://(?:www.|(?!www))[a-zA-Z0-9]+.[^s]{2,}|www.[a-zA-Z0-9]+.[^s]{2,})",
+      "g"
+    );
+
+    if (
+      selectedText?.match(urlRegex)?.length === 1 &&
+      selectedText?.split(" ").length === 1
+    ) {
+      return createAnchor(
+        { href: selectedText, title: selectedText },
+        editorView,
+        schema
+      );
+    }
+
+    const submit = handleLinkInputSubmit(editorView, schema, selectedText, input);
+
+    editorView.dom
+      .closest(".editor")
+      .querySelector(".js-textmenu")
+      .classList.add("link");
+
+    input.addEventListener("keyup", submit);
+
+    const closeElementCallback = () => {
+      resetInput(editorView, input);
+      input.removeEventListener("keyup", submit);
+    };
+
+    selfClosingListener(input, "blur", closeElementCallback);
+
+    input.focus();
+  };
+
+  // eventListeners
+
+  const setupInputListeners = (editorView, input, inputCloseBtn) => {
+    inputCloseBtn.addEventListener("click", () => {
+      input.value, hideLinkInput(editorView);
+    });
+
+    input.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      ev.target.focus();
+    });
+  };
+
   class MenuView {
-  	
-  	constructor(items, editorView) {
-  	
-  		this.items = items;
-  		this.editorView = editorView;
-  		
-  		this.dom = document.createElement('div');
-  		this.dom.className = "textmenu js-textmenu";
-  		
-  		// Build link input prompt
-  		let container = document.createElement('div');
-  		container.innerHTML = '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>';
-  		let linkPrompt = container.querySelector('*');
-  		this.dom.appendChild(linkPrompt);
-  		
-  		// Run conversions on item array
-  		items.forEach((item, index) => {
-  			// Convert strings to dom nodes
-  			if (typeof item.dom === "string") {
-  				let container = document.createElement('div');
-  				container.innerHTML = item.dom;
-  				items[index].dom = container.querySelector('*');
-  			}
-  			// Convert command shorthand
-  			if (item.command === "strong") {
-  				items[index].command = toggleMark(schema.marks.strong);
-  			} else if (item.command === "em") {
-  				items[index].command = toggleMark(schema.marks.em);
-  			} else if (item.command === "h2") {
-  				// TODO: Make button toggle block type, rather than only set it
-  				items[index].command = setBlockType(schema.nodes.heading, { level: 2 });
-  			} else if (item.command === "h3") {
-  				// TODO: Make button toggle block type, rather than only set it
-  				items[index].command = setBlockType(schema.nodes.heading, { level: 3 });
-  			} else if (item.command === "link") {
-  				// TODO: Open link input, create link on enter, close link prompt button, remove link if selected *is* link
-  				items[index].command = () => {
-  					console.log(editorView.dom.closest('*'));
-  					editorView.dom.closest('.editor').querySelector('.js-textmenu').classList.add('link');
-  					};
-  			} else if (item.command === "blockquote") {
-  				// TODO: toggle functionality
-  				items[index].command = wrapIn(schema.nodes.blockquote);
-  			}
-  			// TODO: Add ul, ol, hr, functionality
-  		});
-  		
-  		// Append to container
-  		items.forEach(({dom}) => this.dom.appendChild(dom));
-  		
-  		// Update
-  		this.update(editorView, null);
-  		
-  		// Assign commands
-  		this.dom.addEventListener('mousedown', e => {
-  			e.preventDefault();
-  			editorView.focus();
-  			items.forEach(({command, dom}) => {
-  				if (typeof command == "function") {
-  					if (dom.contains(e.target)) {
-  						command(editorView.state, editorView.dispatch, editorView);
-  					}
-  				}
-  			});
-  		});
-  	
-  	}
-  	
-  	update() {
-  		
-  		// Set menu buttons to 'active', if current selection matches the command the button would assign
-  		this.items.forEach(({command, dom}) => {
-  			// TODO
-  		});
-  				
-  		let menu = this.editorView.dom.closest('.editor').querySelector('.js-textmenu');
-  		
-  		if (menu) {
-  		
-  			// Show/hide menu
-  			if (this.editorView.state.selection.empty) {
-  				menu.classList.remove('active');
-  			} else {
-  				menu.classList.add('active');
-  			}
-  			
-  			// Position menu
-  			let {from, to} = this.editorView.state.selection;
-  			let start = this.editorView.coordsAtPos(from), end = this.editorView.coordsAtPos(to);
-  			if (menu.offsetParent) {
-  				menu.offsetParent.getBoundingClientRect();
-  				let left = (start.left + end.left) / 2;
-  				menu.style.left = left + "px";
-  				menu.style.top = start.top - 60 + "px";		
-  			}
-  		
-  		}
-  		
-  	}
-  	
-  	destroy() { this.dom.remove(); }
-  	
+    constructor(items, editorView) {
+      this.items = items;
+      this.editorView = editorView;
+
+      this.dom = document.createElement("div");
+      this.dom.className = "textmenu js-textmenu";
+      const schema = editorView.state.schema;
+      // Build link input prompt
+      let container = document.createElement("div");
+      container.innerHTML =
+        '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>';
+
+      let linkPrompt = container.querySelector("*");
+      const input = container.querySelector("input");
+      const inputCloseBtn = container.querySelector(".textmenu__linkclose");
+
+      setupInputListeners(this.editorView, input, inputCloseBtn);
+
+      this.dom.appendChild(linkPrompt);
+
+      // Run conversions on item array
+      items.forEach((item, index) => {
+        // Convert strings to dom nodes
+        if (typeof item.dom === "string") {
+          let container = document.createElement("div");
+          container.innerHTML = item.dom;
+          items[index].dom = container.querySelector("*");
+        }
+        // Convert command shorthand
+        if (item.command === "strong") {
+          items[index].command = toggleMark(schema.marks.strong);
+          items[index].checkActive = generalActiveCheck(schema.marks.strong);
+        } else if (item.command === "em") {
+          items[index].command = toggleMark(schema.marks.em);
+          items[index].checkActive = generalActiveCheck(schema.marks.em);
+        } else if (item.command === "h2") {
+          items[index].command = toggleBlockType(editorView, "heading", {
+            level: 2,
+          });
+          items[index].checkActive = generalActiveCheck(schema.nodes.heading, {
+            level: 2,
+          });
+        } else if (item.command === "h3") {
+          items[index].command = toggleBlockType(editorView, "heading", {
+            level: 3,
+          });
+          items[index].checkActive = generalActiveCheck(schema.nodes.heading, {
+            level: 3,
+          });
+        } else if (item.command === "link") {
+          items[index].command = linkHandler(editorView);
+          items[index].checkActive = generalActiveCheck(schema.marks.link);
+        } else if (item.command === "blockquote") {
+          items[index].command = toggleWrapIn(editorView, "blockquote");
+          items[index].checkActive = generalActiveCheck(schema.nodes.blockquote);
+        } else if (item.command === "hr") {
+          items[index].command = insertAtEnd(editorView, "horizontal_rule");
+        } else if (item.command === "ul") {
+          items[index].command = toggleWrapIn(editorView, "bullet_list");
+          items[index].checkActive = generalActiveCheck(schema.nodes.bullet_list);
+        } else if (item.command === "ol") {
+          items[index].command = toggleWrapIn(editorView, "ordered_list");
+          items[index].checkActive = generalActiveCheck(
+            schema.nodes.ordered_list
+          );
+        }
+      });
+
+      // Append to container
+      items.forEach(({ dom }) => this.dom.appendChild(dom));
+
+      // Update
+      this.update(editorView, null);
+
+      // Assign commands
+      this.dom.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (!e.target.className.includes("textmenu__linkinput")) {
+          editorView.focus();
+        }
+        items.forEach(({ command, dom }) => {
+          if (typeof command == "function") {
+            if (dom.contains(e.target)) {
+              command(editorView.state, editorView.dispatch, editorView);
+            }
+          }
+        });
+      });
+    }
+
+    update() {
+      // Set menu buttons to 'active', if current selection matches the command the button would assign
+      this.items.forEach(({ dom, checkActive }) => {
+        if (checkActive && checkActive(this.editorView.state)) {
+          dom.classList.add("active");
+        } else {
+          dom.classList.remove("active");
+        }
+      });
+
+      let menu = this.editorView.dom
+        .closest(".editor")
+        .querySelector(".js-textmenu");
+
+      if (menu) {
+        // Show/hide menu
+        if (this.editorView.state.selection.empty) {
+          menu.classList.remove("active");
+          menu.classList.remove("link");
+        } else {
+          menu.classList.add("active");
+        }
+
+        // Position menu
+        let { from, to } = this.editorView.state.selection;
+        let start = this.editorView.coordsAtPos(from),
+          end = this.editorView.coordsAtPos(to);
+
+        if (menu.offsetParent) {
+          menu.offsetParent.getBoundingClientRect();
+          let left = (start.left + end.left) / 2;
+          menu.style.left = left + "px";
+          // Ensure that menu visible on top of the document
+          if (start.top < 50) {
+            menu.style.top = start.top + 40 + "px";
+          } else {
+            menu.style.top = start.top - 60 + "px";
+          }
+        }
+      }
+    }
+
+    destroy() {
+      this.dom.remove();
+    }
   }
 
   function menuPlugin(items) {
-  	return new Plugin({
-  		view(editorView) {
-  			let menuView = new MenuView(items, editorView);
-  			editorView.dom.parentNode.insertBefore(menuView.dom, editorView.dom);
-  			return menuView
-  		},
-  		props: {
-  			handleDOMEvents: {
-  				focus: (view, event) => {
-  					view.wasFocused = true;
-  					return false;
-  				},
-  				blur: (view, event) => {
-  					if (view.wasFocused) {
-  						let container = event.target.closest('.editor');
-  						container.classList.remove('focused');
-  						container.querySelector('.js-textmenu').classList.remove('active');
-  					}
-  					return false
-  				}
-  			}
-  		},
-  		appendTransaction(transaction, oldState, newState) { }
-  	})
+    return new Plugin({
+      view(editorView) {
+        let menuView = new MenuView(items, editorView);
+        editorView.dom.parentNode.insertBefore(menuView.dom, editorView.dom);
+        return menuView;
+      },
+      props: {
+        handleDOMEvents: {
+          focus: (view, event) => {
+            view.wasFocused = true;
+            return false;
+          },
+          blur: (view, event) => {
+            if (view.wasFocused) {
+              let container = event.target.closest(".editor");
+              container.classList.remove("focused");
+              // handle linkinput
+              const linkInput = document.querySelector(".js-textmenu");
+              const linkInputActive = [...linkInput.classList].includes("link");
+              if (!linkInputActive) {
+                container
+                  .querySelector(".js-textmenu")
+                  .classList.remove("active");
+              }
+            }
+            return false;
+          },
+        },
+      },
+      appendTransaction(transaction, oldState, newState) {},
+    });
   }
 
   // Get all elements that should contain an editor
-  let texts = document.querySelectorAll('.text');
+  let texts = document.querySelectorAll(".text");
 
   // Loop through each one
   for (let text of texts) {
-  		
-  	let content = text.querySelector('.content');
-  	let editor = text.querySelector('.editor');
-  	
-  	// Create instance of menu plugin
-  	let menu = menuPlugin([
-  		{
-  			command: 'strong',
-  			dom: '<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>',
-  		},
-  		{
-  			command: 'em',
-  			dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
-  		},
-  		{
-  			command: 'link',
-  			dom: '<div title="Link" class="textmenu__button textmenu__button--link js-link"><i class="fal fa-link"></i></div>',
-  		},
-  		{
-  			command: false,
-  			dom: '<div class="textmenu__divider"></div>'
-  		},
-  		{
-  			command: 'h2',
-  			dom: '<div title="Big Heading" class="textmenu__button textmenu__button--heading2 js-heading2"><i class="fal fa-heading"></i></div>'
-  		},
-  		{
-  			command: 'h3',
-  			dom: '<div title="Small Heading" class="textmenu__button textmenu__button--heading3 js-heading3"><i class="fal fa-heading"></i></div>'	
-  		},
-  		{
-  			command: null,
-  			dom: '<div class="textmenu__divider"></div>'
-  		},
-  		{
-  			command: null,
-  			dom: '<div title="Bullet List" class="textmenu__button textmenu__button--list js-list"><i class="fal fa-list"></i></div>'
-  		},
-  		{
-  			command: null,
-  			dom: '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>'
-  		},
-  		{
-  			command: 'blockquote',
-  			dom: '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>'
-  		}
-  	
-  	]);
-  	
-  	// Define state
-  	let state = EditorState.create({
-  		doc: DOMParser.fromSchema(schema).parse(content),
-  		plugins: [
-  			keymap(baseKeymap),
-  			keymap({
-  				"Shift-Enter": schema.nodes.hard_break.create(), // WOrks but causes error
-  				"Mod-b": toggleMark(schema.marks.strong),
-  				"Mod-i": toggleMark(schema.marks.em),
-  				"Mod-z": undo,
-  				"Mod-y": redo
-  			}),
-  			
-  			menu,
-  		]
-  	});
-  	
-  	// Define view
-  	let view = new EditorView(editor, {
-  		state,
-  		dispatchTransaction(transaction) {
-  			
-  			// Update editor state
-  			let previousState = view.state.doc;
-  			let newState = view.state.apply(transaction);
-  			view.updateState(newState);
-  				
-  			// Save content
-  			if (!previousState.eq(view.state.doc)) ;
-  			
-  		},
-  		handleDOMEvents: {}
-  	});
+    let content = text.querySelector(".content");
+    let editor = text.querySelector(".editor");
 
+    // Create instance of menu plugin
+    let menu = menuPlugin([
+      {
+        command: "strong",
+        dom:
+          '<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>',
+      },
+      {
+        command: "em",
+        dom:
+          '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>',
+      },
+      {
+        command: "link",
+        dom:
+          '<div title="Link" class="textmenu__button textmenu__button--link js-link"><i class="fal fa-link"></i></div>',
+      },
+      {
+        command: false,
+        dom: '<div class="textmenu__divider"></div>',
+      },
+      {
+        command: "h2",
+        dom:
+          '<div title="Big Heading" class="textmenu__button textmenu__button--heading2 js-heading2"><i class="fal fa-heading"></i></div>',
+      },
+      {
+        command: "h3",
+        dom:
+          '<div title="Small Heading" class="textmenu__button textmenu__button--heading3 js-heading3"><i class="fal fa-heading"></i></div>',
+      },
+      {
+        command: null,
+        dom: '<div class="textmenu__divider"></div>',
+      },
+      {
+        command: "ul",
+        dom:
+          '<div title="Bullet List" class="textmenu__button textmenu__button--list js-list"><i class="fal fa-list"></i></div>',
+      },
+      {
+        command: "ol",
+        dom:
+          '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>',
+      },
+      {
+        command: "blockquote",
+        dom:
+          '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>',
+      },
+      {
+        command: "hr",
+        dom:
+          '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote">hr</div>',
+      },
+    ]);
+
+    const mySchema = new Schema({
+      nodes: addListNodes(schema.spec.nodes, "paragraph block*", "block"),
+      marks: schema.spec.marks,
+    });
+
+    // Define state
+    let state = EditorState.create({
+      doc: DOMParser.fromSchema(mySchema).parse(content),
+      plugins: [
+        history(),
+        keymap(baseKeymap),
+        keymap({
+          "Shift-Enter": (state, dispatch) =>
+            dispatch(
+              state.tr
+                .replaceSelectionWith(mySchema.nodes.hard_break.create())
+                .scrollIntoView()
+            ),
+          "Mod-b": toggleMark(mySchema.marks.strong),
+          "Mod-i": toggleMark(mySchema.marks.em),
+          "Mod-z": undo,
+          "Mod-y": redo,
+        }),
+
+        menu,
+      ],
+    });
+
+    // Define view
+    let view = new EditorView(editor, {
+      state,
+      dispatchTransaction(transaction) {
+        // Update editor state
+        let previousState = view.state.doc;
+        let newState = view.state.apply(transaction);
+        view.updateState(newState);
+
+        // Save content
+        if (!previousState.eq(view.state.doc)) ;
+      },
+      handleDOMEvents: {},
+    });
   }
 
 }());
