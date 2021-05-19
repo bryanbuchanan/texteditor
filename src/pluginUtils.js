@@ -215,11 +215,7 @@ export const linkHandler = (editorView) => (state, dispatch) => {
 
 export const setupInputListeners = (editorView, input, inputCloseBtn) => {
   inputCloseBtn.addEventListener("click", () => {
-    input.value, hideLinkInput(editorView);
-  });
-
-  input.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    ev.target.focus();
+    input.value = "";
+    hideLinkInput(editorView);
   });
 };
