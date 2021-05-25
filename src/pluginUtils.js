@@ -130,11 +130,9 @@ const createAnchor = (linkProps, editorView, schema) => {
 };
 
 // Hide input menu
-export const hideLinkInput = (editorView) =>
-  editorView.dom
-    .closest(".editor")
-    .querySelector(".js-textmenu")
-    .classList.remove("link");
+export const hideLinkInput = editorView => {
+  editorView.dom.parentNode.querySelector('.texteditor__menu').classList.remove('link')
+}
 
 export const resetInput = (editorView, input) => {
   hideLinkInput(editorView);
@@ -156,7 +154,8 @@ const handleLinkInputSubmit = (editorView, schema, selectedText, input) => (
 };
 
 // handles link creation
-export const linkHandler = (editorView) => (state, dispatch) => {
+export const linkHandler = editorView => (state, dispatch) => {
+
   const schema = editorView.state.schema;
   const { $from, from, to, $to } = editorView.state.selection;
 
@@ -165,12 +164,14 @@ export const linkHandler = (editorView) => (state, dispatch) => {
     $to.pos,
     schema.marks.link
   );
+
   // remove link if it already exists
   if (isLink) {
     return toggleMark(schema.marks.link)(state, dispatch);
   }
 
-  const input = document.querySelector(".textmenu__linkinput");
+  // const input = document.querySelector('.texteditor__menu__linkinput');
+  const input = editorView.dom.parentNode.querySelector('.texteditor__linkinput');
 
   const selectionFragment = editorView.state.doc.cut(from, to);
   const selectedText = selectionFragment.textContent;
@@ -194,10 +195,8 @@ export const linkHandler = (editorView) => (state, dispatch) => {
 
   const submit = handleLinkInputSubmit(editorView, schema, selectedText, input);
 
-  editorView.dom
-    .closest(".editor")
-    .querySelector(".js-textmenu")
-    .classList.add("link");
+  // Show link input
+  editorView.dom.parentNode.querySelector('.texteditor__menu').classList.add('link');
 
   input.addEventListener("keyup", submit);
 
@@ -209,6 +208,7 @@ export const linkHandler = (editorView) => (state, dispatch) => {
   selfClosingListener(input, "blur", closeElementCallback);
 
   input.focus();
+
 };
 
 // eventListeners
@@ -218,4 +218,11 @@ export const setupInputListeners = (editorView, input, inputCloseBtn) => {
     input.value = "";
     hideLinkInput(editorView);
   });
+};
+
+
+export const stringToDom = (string) => {
+  const div = document.createElement('div')
+	div.innerHTML = string
+	return div.querySelector('*')
 };

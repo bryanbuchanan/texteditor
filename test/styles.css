@@ -1,16 +1,18 @@
-.textmenu {
+.texteditor__menu {
   display: flex;
   position: absolute;
   z-index: 1000;
   color: #fff;
   background: #222;
-  transform: translateX(-50%);
   display: none;
 }
-.textmenu.active {
+.texteditor__menu.active {
   display: flex;
 }
-.textmenu__button {
+.texteditor__menu.link .texteditor__link {
+  display: flex;
+}
+.texteditor__button {
   cursor: pointer;
   font-size: 16px;
   text-align: center;
@@ -21,32 +23,33 @@
   transition: all 0.15s ease-out;
   box-sizing: content-box;
 }
-.textmenu__button:first-child {
+.texteditor__button:first-child {
   padding-left: 5px;
 }
-.textmenu__button:last-child {
+.texteditor__button:last-child {
   padding-right: 5px;
 }
-.textmenu__button:hover {
+.texteditor__button:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.15);
 }
-.textmenu__button.active {
+.texteditor__button.active {
   opacity: 1;
   background: #666;
 }
-.textmenu__button--heading2 {
+.texteditor__button--h2 {
   font-size: 1.1em;
 }
-.textmenu__button--heading3 {
+.texteditor__button--h3 {
   font-size: 0.8em;
 }
-.textmenu__divider {
+.texteditor__button--divider {
+  cursor: default;
   width: 1px;
-  margin: 10px;
-  background: rgba(255, 255, 255, 0.25);
+  margin: 0 10px;
+  background: rgba(255, 255, 255, 0.25) !important;
 }
-.textmenu__link {
+.texteditor__link {
   position: absolute;
   top: 0;
   left: 0;
@@ -56,21 +59,20 @@
   background: #222;
   display: none;
 }
-.textmenu__linkinput {
+.texteditor__linkinput {
   flex-grow: 1;
   background: transparent;
   color: #fff;
   padding: 0 20px;
   border: none;
 }
-.textmenu__linkclose {
+.texteditor__linkclose {
   height: 50px;
   line-height: 50px;
   width: 50px;
   text-align: center;
   cursor: pointer;
 }
-.textmenu.link .textmenu__link {
+.texteditor.link .texteditor__link {
   display: flex;
 }
-/*# sourceMappingURL=styles.css.map */
