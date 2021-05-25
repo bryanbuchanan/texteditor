@@ -13624,7 +13624,7 @@
       {
         command: "hr",
         dom:
-          '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote">hr</div>',
+          '<div title="Horizontal Rule" class="textmenu__button textmenu__button--quote js-quote">hr</div>',
       },
     ]);
 
