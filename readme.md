@@ -9,4 +9,5 @@
 #### TODO
 
 - ol/ul buttons cause errors
+- When editing an item inside an ol/ul, the enter key should create a new list item instead of a new paragraph
 
