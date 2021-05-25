@@ -31,7 +31,7 @@ Editor({
         { type: "blockquote", title: "Quote", icon: '<i class="fal fa-quote-left"></i>' },
         { type: "hr", title: "Horizontal Line", icon: 'hr' }
     ],
-    save: (data) => {
+    change: (data) => {
         console.log(data)
     }
 })
