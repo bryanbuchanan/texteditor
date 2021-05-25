@@ -13462,6 +13462,7 @@ class MenuView {
 		// Append to container
 		// items.forEach(({ dom }) => this.dom.appendChild(dom));
 
+		// FIXME menu item doms get moved to last menu bar
 		for (const item of this.items) {
 			console.log(this.dom);
 			console.log(item.dom);
