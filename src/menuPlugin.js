@@ -108,7 +108,7 @@ class MenuView {
 				editorView.focus();
 			}
 			items.forEach(({ command, dom }) => {
-				if (typeof command == "function") {
+				if (typeof command === "function") {
 					if (dom.contains(e.target)) {
 						command(editorView.state, editorView.dispatch, editorView);
 					}
