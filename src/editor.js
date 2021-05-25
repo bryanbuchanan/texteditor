@@ -65,18 +65,24 @@ const editor = (parameters) => {
 			// Save content
 			if (!previousState.eq(view.state.doc)) {
 
-				const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)
-				const div = document.createElement('div')
-				div.appendChild(fragment)
-				const html = div.innerHTML
-				const parentElement = view.dom.closest(parameters.selector)
-				const id = parentElement.dataset.id ?? parentElement.id ?? "About 350"
-		
-				// Send data to callback function
-				parameters.save({
-					id: id,
-					html: html
-				})
+				// TODO: something about DOMSerializer breaks everything when creating a list
+				console.log(view.state.doc.content)
+				try {
+					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)
+					const div = document.createElement('div')
+					div.appendChild(fragment)
+					const html = div.innerHTML
+					const parentElement = view.dom.closest(parameters.selector)
+					const id = parentElement.dataset.id ?? parentElement.id ?? "About 350"
+			
+					// Send data to callback function
+					parameters.save({
+						id: id,
+						html: html
+					})
+				} catch(error) {
+					console.log(error)
+				}
 
 			}
     	},
