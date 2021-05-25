@@ -1,6 +1,7 @@
 import { Plugin } from "prosemirror-state";
 import { toggleMark } from "prosemirror-commands";
 import {
+	stringToDom,
 	generalActiveCheck,
 	insertAtEnd,
 	linkHandler,
@@ -16,16 +17,16 @@ class MenuView {
 		this.items = items;
 		this.editorView = editorView
 
-		this.dom = document.createElement("div");
-		this.dom.className = "textmenu js-textmenu";
+		this.dom = document.createElement('div');
+		this.dom.className = "texteditor__menu";
 		const schema = editorView.state.schema;
 
 		// Build link input prompt
-		let container = document.createElement("div");
-		container.innerHTML = '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>';
+		let container = document.createElement('div');
+		container.innerHTML = '<div class="texteditor__link"><input class="texteditor__linkinput" type="text" placeholder="Enter an address..."><div class="texteditor__linkclose">x</div></div>';
 		let linkPrompt = container.querySelector("*");
 		const input = container.querySelector("input");
-		const inputCloseBtn = container.querySelector(".textmenu__linkclose");
+		const inputCloseBtn = container.querySelector(".texteditor__linkclose");
 		setupInputListeners(this.editorView, input, inputCloseBtn);
 		this.dom.appendChild(linkPrompt);
 
@@ -44,39 +45,39 @@ class MenuView {
 				item.dom = container.querySelector("*");
 			}
 
-			// Convert command shorthand
-			if (item.command === "strong") {
+			// Convert "type" to actual commands
+			if (item.type === "strong") {
 				item.command = toggleMark(schema.marks.strong);
 				item.checkActive = generalActiveCheck(schema.marks.strong);
-			} else if (item.command === "em") {
+			} else if (item.type === "em") {
 				item.command = toggleMark(schema.marks.em);
 				item.checkActive = generalActiveCheck(schema.marks.em);
-			} else if (item.command === "h2") {
+			} else if (item.type === "h2") {
 				item.command = toggleBlockType(editorView, "heading", {
 					level: 2,
 				});
 				item.checkActive = generalActiveCheck(schema.nodes.heading, {
 					level: 2,
 				});
-			} else if (item.command === "h3") {
+			} else if (item.type === "h3") {
 				item.command = toggleBlockType(editorView, "heading", {
 					level: 3,
 				});
 				item.checkActive = generalActiveCheck(schema.nodes.heading, {
 					level: 3,
 				});
-			} else if (item.command === "link") {
+			} else if (item.type === "link") {
 				item.command = linkHandler(editorView);
 				item.checkActive = generalActiveCheck(schema.marks.link);
-			} else if (item.command === "blockquote") {
+			} else if (item.type === "blockquote") {
 				item.command = toggleWrapIn(editorView, "blockquote");
 				item.checkActive = generalActiveCheck(schema.nodes.blockquote);
-			} else if (item.command === "hr") {
+			} else if (item.type === "hr") {
 				item.command = insertAtEnd(editorView, "horizontal_rule");
-			} else if (item.command === "ul") {
+			} else if (item.type === "ul") {
 				item.command = toggleWrapIn(editorView, "bullet_list");
 				item.checkActive = generalActiveCheck(schema.nodes.bullet_list);
-			} else if (item.command === "ol") {
+			} else if (item.type === "ol") {
 				item.command = toggleWrapIn(editorView, "ordered_list");
 				item.checkActive = generalActiveCheck(schema.nodes.ordered_list);
 			} 
@@ -85,8 +86,10 @@ class MenuView {
 		// Append to container
 		// items.forEach(({ dom }) => this.dom.appendChild(dom));
 
-		// FIXME menu item doms get moved to last menu bar
 		for (const item of this.items) {
+			// Wrap button
+			item.dom = stringToDom(`<div title="${item.title}" class="texteditor__button texteditor__button--${item.type} js-${item.type}">${item.icon}</div>`)
+			// Append to menu
 			this.dom.appendChild(item.dom)
 		}
 
@@ -101,7 +104,7 @@ class MenuView {
 		// Assign commands
 		this.dom.addEventListener('mousedown', e => {
 			e.preventDefault();
-			if (!e.target.className.includes('textmenu__linkinput')) {
+			if (!e.target.className.includes('texteditor__linkinput')) {
 				editorView.focus();
 			}
 			items.forEach(({ command, dom }) => {
@@ -126,7 +129,7 @@ class MenuView {
 		});
 
 		// TODO find a better way to identify menu
-		let menu = this.editorView.dom.closest('.text').querySelector('.js-textmenu');
+		let menu = view.dom.parentNode.querySelector('.texteditor__menu')
 
 		if (menu) {
 
@@ -152,36 +155,22 @@ class MenuView {
 					let box = menu.offsetParent.getBoundingClientRect()
 					let menuDimensions = menu.getBoundingClientRect()
 
-					// console.log('box', box)
-					// console.log('menuDimensions', menuDimensions)
-					
+					// horizontal alignment
 					let left = ((start.left + end.left) / 2) - box.x
 					left = left - (menu.offsetWidth / 2)
-					if (left < 0) left = 0
-
+					if (left < -box.left) {
+						left = 0
+					} else if (left + menu.offsetWidth > box.width) {
+						left = box.width - menu.offsetWidth
+					}
 					menu.style.left = left + "px"
 
-					// menu.style.bottom = (box.bottom - start.bottom + menuDimensions.height) + "px"
-
+					// Vertical alignment
 					let top = start.top - box.top - menuDimensions.height
-					// console.log('top', top)
+					if (top < -box.top) {
+						top = start.top + 40
+					}
 					menu.style.top = top + "px"
-
-					// let width = menu.scrollWidth;
-					// let windowWidth = window.innerWidth;
-					// if (left - width / 2 < 0) {
-					// 	left = width / 2;
-					// } else if (left + width / 2 > windowWidth) {
-					// 	left = windowWidth - width / 2;
-					// }
-
-					// menu.style.left = left + "px";
-					// Ensure that menu visible on top of the document
-					// if (start.top < 50) {
-					// 	menu.style.top = start.top + 40 + "px";
-					// } else {
-					// 	menu.style.top = start.top - 60 + "px";
-					// }
 
 				}
 
@@ -216,11 +205,12 @@ export function menuPlugin(items) {
 						let container = event.target.parentNode
 						
 						// handle linkinput
-						const linkInput = document.querySelector('.js-textmenu')
+						const linkInput = view.dom.parentNode.querySelector('.texteditor__menu')
+						// const linkInput = document.querySelector('.texteditor__menu')
 						const linkInputActive = [...linkInput.classList].includes('link')
 						if (!linkInputActive) {
 							container
-								.querySelector('.js-textmenu')
+								.querySelector('.texteditor__menu')
 								.classList.remove('active')
 						}
 					}

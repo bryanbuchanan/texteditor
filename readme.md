@@ -1,7 +1,6 @@
 ## Prosemirror-based drop-in editor
 
-Todo
+TODO
 
-- Editor doesn't work with multiple instances anymore
 - ol/ul buttons cause errors
 

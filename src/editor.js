@@ -16,10 +16,10 @@ const Editor = (parameters) => {
 	const el = parameters.element
 
 	// Markup changes to accomodate text editor
-	el.innerHTML = `<div class="text__content" style="display:none!important;">${el.innerHTML}</div>` // Wrap/hide existing content
-	const content = el.querySelector('.text__content')
+	el.innerHTML = `<div class="texteditor__content" style="display:none!important;">${el.innerHTML}</div>` // Wrap/hide existing content
+	const content = el.querySelector('.texteditor__content')
 	const editor = document.createElement('div')
-	editor.classList.add('js-editor')
+	editor.classList.add('texteditor')
 	el.append(editor)
 
     // Create instance of menu plugin
