@@ -9,6 +9,11 @@ import { keymap } from "prosemirror-keymap"
 import { undo, redo, history } from "prosemirror-history"
 import { addListNodes } from "prosemirror-schema-list"
 
+// import { addListNodes } from "prosemirror-inputrules"
+import { buildInputRules } from "./inputrules"
+
+// import {schema, defaultMarkdownParser, defaultMarkdownSerializer} from "prosemirror-markdown"
+
 import { menuPlugin } from "./menuPlugin.js"
 
 const Editor = (parameters) => {
@@ -32,8 +37,10 @@ const Editor = (parameters) => {
 
     // Define state
     const state = EditorState.create({
+		autoInput: true,
     	doc: DOMParser.fromSchema(mySchema).parse(content),
     	plugins: [
+			buildInputRules(mySchema),
 			history(),
 			keymap(baseKeymap),
 			keymap({
@@ -66,7 +73,7 @@ const Editor = (parameters) => {
 			if (!previousState.eq(view.state.doc)) {
 
 				// TODO something about DOMSerializer breaks everything when creating a list
-				console.log(view.state.doc.content)
+				// console.log(view.state.doc.content)
 				try {
 
 					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)

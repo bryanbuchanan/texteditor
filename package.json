@@ -24,6 +24,7 @@
   "dependencies": {
     "prosemirror-commands": "^1.1.7",
     "prosemirror-history": "^1.1.3",
+    "prosemirror-inputrules": "^1.1.3",
     "prosemirror-keymap": "^1.1.4",
     "prosemirror-model": "^1.14.1",
     "prosemirror-schema-basic": "^1.1.2",

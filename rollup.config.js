@@ -19,7 +19,9 @@ export default [
 		plugins: [
 			resolve(),
 			commonjs(),
-			dev && serve(),
+			dev && serve({
+				port: 10002
+			}),
 			dev && livereload({
 				watch: './'
 			})

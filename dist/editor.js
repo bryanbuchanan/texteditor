@@ -1,3 +1,5 @@
+
+(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35730/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(window.document);
 // ::- Persistent data structure representing an ordered mapping from
 // strings to values, with some convenient update methods.
 function OrderedMap(content) {
@@ -13167,6 +13169,205 @@ function liftOutOfList(state, dispatch, range) {
   return true
 }
 
+// ::- Input rules are regular expressions describing a piece of text
+// that, when typed, causes something to happen. This might be
+// changing two dashes into an emdash, wrapping a paragraph starting
+// with `"> "` into a blockquote, or something entirely different.
+var InputRule = function InputRule(match, handler) {
+  this.match = match;
+  this.handler = typeof handler == "string" ? stringHandler(handler) : handler;
+};
+
+function stringHandler(string) {
+  return function(state, match, start, end) {
+    var insert = string;
+    if (match[1]) {
+      var offset = match[0].lastIndexOf(match[1]);
+      insert += match[0].slice(offset + match[1].length);
+      start += offset;
+      var cutOff = start - end;
+      if (cutOff > 0) {
+        insert = match[0].slice(offset - cutOff, offset) + insert;
+        start = end;
+      }
+    }
+    return state.tr.insertText(insert, start, end)
+  }
+}
+
+var MAX_MATCH = 500;
+
+// :: (config: {rules: [InputRule]}) → Plugin
+// Create an input rules plugin. When enabled, it will cause text
+// input that matches any of the given rules to trigger the rule's
+// action.
+function inputRules(ref) {
+  var rules = ref.rules;
+
+  var plugin = new Plugin({
+    state: {
+      init: function init() { return null },
+      apply: function apply(tr, prev) {
+        var stored = tr.getMeta(this);
+        if (stored) { return stored }
+        return tr.selectionSet || tr.docChanged ? null : prev
+      }
+    },
+
+    props: {
+      handleTextInput: function handleTextInput(view, from, to, text) {
+        return run(view, from, to, text, rules, plugin)
+      },
+      handleDOMEvents: {
+        compositionend: function (view) {
+          setTimeout(function () {
+            var ref = view.state.selection;
+            var $cursor = ref.$cursor;
+            if ($cursor) { run(view, $cursor.pos, $cursor.pos, "", rules, plugin); }
+          });
+        }
+      }
+    },
+
+    isInputRules: true
+  });
+  return plugin
+}
+
+function run(view, from, to, text, rules, plugin) {
+  if (view.composing) { return false }
+  var state = view.state, $from = state.doc.resolve(from);
+  if ($from.parent.type.spec.code) { return false }
+  var textBefore = $from.parent.textBetween(Math.max(0, $from.parentOffset - MAX_MATCH), $from.parentOffset,
+                                            null, "\ufffc") + text;
+  for (var i = 0; i < rules.length; i++) {
+    var match = rules[i].match.exec(textBefore);
+    var tr = match && rules[i].handler(state, match, from - (match[0].length - text.length), to);
+    if (!tr) { continue }
+    view.dispatch(tr.setMeta(plugin, {transform: tr, from: from, to: to, text: text}));
+    return true
+  }
+  return false
+}
+
+// :: InputRule Converts double dashes to an emdash.
+var emDash = new InputRule(/--$/, "—");
+// :: InputRule Converts three dots to an ellipsis character.
+var ellipsis = new InputRule(/\.\.\.$/, "…");
+// :: InputRule “Smart” opening double quotes.
+var openDoubleQuote = new InputRule(/(?:^|[\s\{\[\(\<'"\u2018\u201C])(")$/, "“");
+// :: InputRule “Smart” closing double quotes.
+var closeDoubleQuote = new InputRule(/"$/, "”");
+// :: InputRule “Smart” opening single quotes.
+var openSingleQuote = new InputRule(/(?:^|[\s\{\[\(\<'"\u2018\u201C])(')$/, "‘");
+// :: InputRule “Smart” closing single quotes.
+var closeSingleQuote = new InputRule(/'$/, "’");
+
+// :: [InputRule] Smart-quote related input rules.
+var smartQuotes = [openDoubleQuote, closeDoubleQuote, openSingleQuote, closeSingleQuote];
+
+// :: (RegExp, NodeType, ?union<Object, ([string]) → ?Object>, ?([string], Node) → bool) → InputRule
+// Build an input rule for automatically wrapping a textblock when a
+// given string is typed. The `regexp` argument is
+// directly passed through to the `InputRule` constructor. You'll
+// probably want the regexp to start with `^`, so that the pattern can
+// only occur at the start of a textblock.
+//
+// `nodeType` is the type of node to wrap in. If it needs attributes,
+// you can either pass them directly, or pass a function that will
+// compute them from the regular expression match.
+//
+// By default, if there's a node with the same type above the newly
+// wrapped node, the rule will try to [join](#transform.Transform.join) those
+// two nodes. You can pass a join predicate, which takes a regular
+// expression match and the node before the wrapped node, and can
+// return a boolean to indicate whether a join should happen.
+function wrappingInputRule(regexp, nodeType, getAttrs, joinPredicate) {
+  return new InputRule(regexp, function (state, match, start, end) {
+    var attrs = getAttrs instanceof Function ? getAttrs(match) : getAttrs;
+    var tr = state.tr.delete(start, end);
+    var $start = tr.doc.resolve(start), range = $start.blockRange(), wrapping = range && findWrapping(range, nodeType, attrs);
+    if (!wrapping) { return null }
+    tr.wrap(range, wrapping);
+    var before = tr.doc.resolve(start - 1).nodeBefore;
+    if (before && before.type == nodeType && canJoin(tr.doc, start - 1) &&
+        (!joinPredicate || joinPredicate(match, before)))
+      { tr.join(start - 1); }
+    return tr
+  })
+}
+
+// :: (RegExp, NodeType, ?union<Object, ([string]) → ?Object>) → InputRule
+// Build an input rule that changes the type of a textblock when the
+// matched text is typed into it. You'll usually want to start your
+// regexp with `^` to that it is only matched at the start of a
+// textblock. The optional `getAttrs` parameter can be used to compute
+// the new node's attributes, and works the same as in the
+// `wrappingInputRule` function.
+function textblockTypeInputRule(regexp, nodeType, getAttrs) {
+  return new InputRule(regexp, function (state, match, start, end) {
+    var $start = state.doc.resolve(start);
+    var attrs = getAttrs instanceof Function ? getAttrs(match) : getAttrs;
+    if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) { return null }
+    return state.tr
+      .delete(start, end)
+      .setBlockType(start, start, nodeType, attrs)
+  })
+}
+
+// : (NodeType) → InputRule
+// Given a blockquote node type, returns an input rule that turns `"> "`
+// at the start of a textblock into a blockquote.
+function blockQuoteRule(nodeType) {
+return wrappingInputRule(/^\s*>\s$/, nodeType)
+}
+
+// : (NodeType) → InputRule
+// Given a list node type, returns an input rule that turns a number
+// followed by a dot at the start of a textblock into an ordered list.
+function orderedListRule(nodeType) {
+return wrappingInputRule(/^(\d+)\.\s$/, nodeType, match => ({order: +match[1]}),
+					   (match, node) => node.childCount + node.attrs.order == +match[1])
+}
+
+// : (NodeType) → InputRule
+// Given a list node type, returns an input rule that turns a bullet
+// (dash, plush, or asterisk) at the start of a textblock into a
+// bullet list.
+function bulletListRule(nodeType) {
+return wrappingInputRule(/^\s*([-+*])\s$/, nodeType)
+}
+
+// : (NodeType) → InputRule
+// Given a code block node type, returns an input rule that turns a
+// textblock starting with three backticks into a code block.
+function codeBlockRule(nodeType) {
+return textblockTypeInputRule(/^```$/, nodeType)
+}
+
+// : (NodeType, number) → InputRule
+// Given a node type and a maximum level, creates an input rule that
+// turns up to that number of `#` characters followed by a space at
+// the start of a textblock into a heading whose level corresponds to
+// the number of `#` signs.
+function headingRule(nodeType, maxLevel) {
+return textblockTypeInputRule(new RegExp("^(#{1," + maxLevel + "})\\s$"),
+							nodeType, match => ({level: match[1].length}))
+}
+
+// : (Schema) → Plugin
+// A set of input rules for creating the basic block quotes, lists,
+// code blocks, and heading.
+function buildInputRules(schema) {
+let rules = smartQuotes.concat(ellipsis, emDash), type;
+if (type = schema.nodes.blockquote) rules.push(blockQuoteRule(type));
+if (type = schema.nodes.ordered_list) rules.push(orderedListRule(type));
+if (type = schema.nodes.bullet_list) rules.push(bulletListRule(type));
+if (type = schema.nodes.code_block) rules.push(codeBlockRule(type));
+if (type = schema.nodes.heading) rules.push(headingRule(type, 6));
+return inputRules({rules})
+}
+
 // Utility in place of native chainCommands, to prevent it from stopping on first truthy value
 function chainTransactions(...commands) {
   return (state, dispatch) => {
@@ -13413,7 +13614,7 @@ class MenuView {
 		setupInputListeners(this.editorView, input, inputCloseBtn);
 		this.dom.appendChild(linkPrompt);
 
-		console.log('this.dom1', this.dom);
+		// console.log('this.dom1', this.dom)
 
 		// Run conversions on item array
 		// this.items.forEach((item, index) => {
@@ -13477,7 +13678,7 @@ class MenuView {
 
 		// this.editorView.dom.appendChild(this.dom)
 
-		console.log('this.dom2', this.dom);
+		// console.log('this.dom2', this.dom)
 
 		// Update
 		this.update(editorView, null);
@@ -13490,8 +13691,12 @@ class MenuView {
 				editorView.focus();
 			}
 			items.forEach(({ command, dom }) => {
-				if (typeof command == "function") {
+				if (typeof command === "function") {
 					if (dom.contains(e.target)) {
+
+						console.log('command', command);
+						console.log('dom', dom);
+						
 						command(editorView.state, editorView.dispatch, editorView);
 					}
 				}
@@ -13626,8 +13831,10 @@ const Editor = (parameters) => {
 
     // Define state
     const state = EditorState.create({
+		autoInput: true,
     	doc: DOMParser.fromSchema(mySchema).parse(content),
     	plugins: [
+			buildInputRules(mySchema),
 			history(),
 			keymap(baseKeymap),
 			keymap({
@@ -13660,7 +13867,7 @@ const Editor = (parameters) => {
 			if (!previousState.eq(view.state.doc)) {
 
 				// TODO something about DOMSerializer breaks everything when creating a list
-				console.log(view.state.doc.content);
+				// console.log(view.state.doc.content)
 				try {
 
 					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content);
