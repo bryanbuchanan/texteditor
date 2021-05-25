@@ -8,8 +8,9 @@ $height: 50px;
   z-index: 1000;
   color: $color;
   background: $background;
-  transform: translateX(-50%);
+  // transform: translateX(-50%);
   display: none;
+  padding: 5px;
 
   &.active {
     display: flex; 

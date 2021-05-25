@@ -13389,7 +13389,9 @@ const setupInputListeners = (editorView, input, inputCloseBtn) => {
 };
 
 class MenuView {
+
 	constructor(items, editorView) {
+
 		this.items = items;
 		this.editorView = editorView;
 
@@ -13409,61 +13411,71 @@ class MenuView {
 		this.dom.appendChild(linkPrompt);
 
 		// Run conversions on item array
-		items.forEach((item, index) => {
+		// this.items.forEach((item, index) => {
+
+		for (const item of items) {
+
 			// Convert strings to dom nodes
 			if (typeof item.dom === "string") {
-				let container = document.createElement("div");
+				const container = document.createElement('div');
 				container.innerHTML = item.dom;
-				items[index].dom = container.querySelector("*");
+				item.dom = container.querySelector("*");
 			}
+
 			// Convert command shorthand
 			if (item.command === "strong") {
-				items[index].command = toggleMark(schema.marks.strong);
-				items[index].checkActive = generalActiveCheck(schema.marks.strong);
+				item.command = toggleMark(schema.marks.strong);
+				item.checkActive = generalActiveCheck(schema.marks.strong);
 			} else if (item.command === "em") {
-				items[index].command = toggleMark(schema.marks.em);
-				items[index].checkActive = generalActiveCheck(schema.marks.em);
+				item.command = toggleMark(schema.marks.em);
+				item.checkActive = generalActiveCheck(schema.marks.em);
 			} else if (item.command === "h2") {
-				items[index].command = toggleBlockType(editorView, "heading", {
+				item.command = toggleBlockType(editorView, "heading", {
 					level: 2,
 				});
-				items[index].checkActive = generalActiveCheck(schema.nodes.heading, {
+				item.checkActive = generalActiveCheck(schema.nodes.heading, {
 					level: 2,
 				});
 			} else if (item.command === "h3") {
-				items[index].command = toggleBlockType(editorView, "heading", {
+				item.command = toggleBlockType(editorView, "heading", {
 					level: 3,
 				});
-				items[index].checkActive = generalActiveCheck(schema.nodes.heading, {
+				item.checkActive = generalActiveCheck(schema.nodes.heading, {
 					level: 3,
 				});
 			} else if (item.command === "link") {
-				items[index].command = linkHandler(editorView);
-				items[index].checkActive = generalActiveCheck(schema.marks.link);
+				item.command = linkHandler(editorView);
+				item.checkActive = generalActiveCheck(schema.marks.link);
 			} else if (item.command === "blockquote") {
-				items[index].command = toggleWrapIn(editorView, "blockquote");
-				items[index].checkActive = generalActiveCheck(schema.nodes.blockquote);
+				item.command = toggleWrapIn(editorView, "blockquote");
+				item.checkActive = generalActiveCheck(schema.nodes.blockquote);
 			} else if (item.command === "hr") {
-				items[index].command = insertAtEnd(editorView, "horizontal_rule");
+				item.command = insertAtEnd(editorView, "horizontal_rule");
 			} else if (item.command === "ul") {
-				items[index].command = toggleWrapIn(editorView, "bullet_list");
-				items[index].checkActive = generalActiveCheck(schema.nodes.bullet_list);
+				item.command = toggleWrapIn(editorView, "bullet_list");
+				item.checkActive = generalActiveCheck(schema.nodes.bullet_list);
 			} else if (item.command === "ol") {
-				items[index].command = toggleWrapIn(editorView, "ordered_list");
-				items[index].checkActive = generalActiveCheck(schema.nodes.ordered_list);
-			}
-		});
-
+				item.command = toggleWrapIn(editorView, "ordered_list");
+				item.checkActive = generalActiveCheck(schema.nodes.ordered_list);
+			} 
+		}
 		// Append to container
-		items.forEach(({ dom }) => this.dom.appendChild(dom));
+		// items.forEach(({ dom }) => this.dom.appendChild(dom));
+
+		for (const item of this.items) {
+			console.log(this.dom);
+			console.log(item.dom);
+			this.dom.appendChild(item.dom);
+		}
 
 		// Update
 		this.update(editorView, null);
+		// this.update() 
 
 		// Assign commands
 		this.dom.addEventListener("mousedown", e => {
 			e.preventDefault();
-			if (!e.target.className.includes("textmenu__linkinput")) {
+			if (!e.target.className.includes('textmenu__linkinput')) {
 				editorView.focus();
 			}
 			items.forEach(({ command, dom }) => {
@@ -13509,22 +13521,41 @@ class MenuView {
 				let end = this.editorView.coordsAtPos(to);
 
 				if (menu.offsetParent) {
-					// let box = menu.offsetParent.getBoundingClientRect();
-					let left = (start.left + end.left) / 2;
-					let width = menu.scrollWidth;
-					let windowWidth = window.innerWidth;
-					if (left - width / 2 < 0) {
-						left = width / 2;
-					} else if (left + width / 2 > windowWidth) {
-						left = windowWidth - width / 2;
-					}
+
+					let box = menu.offsetParent.getBoundingClientRect();
+					let menuDimensions = menu.getBoundingClientRect();
+
+					console.log('box', box);
+					console.log('menuDimensions', menuDimensions);
+					
+					let left = ((start.left + end.left) / 2) - box.x;
+					left = left - (menu.offsetWidth / 2);
+					if (left < 0) left = 0;
+
 					menu.style.left = left + "px";
+
+					// menu.style.bottom = (box.bottom - start.bottom + menuDimensions.height) + "px"
+
+					let top = start.top - box.top - menuDimensions.height;
+					console.log('top', top);
+					menu.style.top = top + "px";
+
+					// let width = menu.scrollWidth;
+					// let windowWidth = window.innerWidth;
+					// if (left - width / 2 < 0) {
+					// 	left = width / 2;
+					// } else if (left + width / 2 > windowWidth) {
+					// 	left = windowWidth - width / 2;
+					// }
+
+					// menu.style.left = left + "px";
 					// Ensure that menu visible on top of the document
-					if (start.top < 50) {
-						menu.style.top = start.top + 40 + "px";
-					} else {
-						menu.style.top = start.top - 60 + "px";
-					}
+					// if (start.top < 50) {
+					// 	menu.style.top = start.top + 40 + "px";
+					// } else {
+					// 	menu.style.top = start.top - 60 + "px";
+					// }
+
 				}
 
 			}

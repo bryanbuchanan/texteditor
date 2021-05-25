@@ -4,8 +4,8 @@
   z-index: 1000;
   color: #fff;
   background: #222;
-  transform: translateX(-50%);
   display: none;
+  padding: 5px;
 }
 .textmenu.active {
   display: flex;

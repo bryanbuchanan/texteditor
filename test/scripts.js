@@ -4,9 +4,6 @@ let parameters = {
 	selector: '.text',
 	content: '.content',
 	editor: '.editor',
-	save: (data) => {
-		console.log(data)
-	},
 	menu: [
 		{ command: "strong", dom: '<div title="Bold" class="textmenu__button textmenu__button--bold js-bold"><i class="fas fa-bold"></i></div>' },
 		{ command: "em", dom: '<div title="Italic" class="textmenu__button textmenu__button--italic js-italic"><i class="fal fa-italic"></i></div>' },
@@ -19,11 +16,16 @@ let parameters = {
 		{ command: "ol", dom: '<div title="Numbered List" class="textmenu__button textmenu__button--numberedlist js-numberedlist"><i class="fal fa-list-ol"></i></div>' },
 		{ command: "blockquote", dom: '<div title="Quote" class="textmenu__button textmenu__button--quote js-quote"><i class="fal fa-quote-left"></i></div>' },
 		{ command: "hr", dom: '<div title="Horizontal Rule" class="textmenu__button textmenu__button--quote js-quote">hr</div>' }
-	]
+	],
+	save: (data) => {
+		console.log(data)
+	},
 }
 
-console.log('Editor:', Editor)
 
 Editor(parameters)
+
+
+
 
 
