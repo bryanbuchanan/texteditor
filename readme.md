@@ -2,7 +2,7 @@
 
 #### Tests
 
-- [One instance](https://bryanbuchanan.github.io/texteditor/test/)
+- [One instance](https://bryanbuchanan.github.io/texteditor/test/index.html)
 - [Multiple instances on one page](https://bryanbuchanan.github.io/texteditor/test/multiple.html)
 - [Multiple instances inside iframe](https://bryanbuchanan.github.io/texteditor/test/frame.html)
 
