@@ -1,3 +1,5 @@
+
+(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(window.document);
 // ::- Persistent data structure representing an ordered mapping from
 // strings to values, with some convenient update methods.
 function OrderedMap(content) {
@@ -13668,7 +13670,7 @@ const Editor = (parameters) => {
 					const id = el.dataset.id ?? el.id ?? "About 350";
 			
 					// Send data to callback function
-					parameters.save({
+					parameters.change({
 						id: id,
 						html: html
 					});
