@@ -14016,7 +14016,7 @@ function menuPlugin(items) {
 					view.wasFocused = true;
 					return false;
 				},
-				blur: (view, event) => {
+				blur: (view, event) => { 
 
 					if (view.wasFocused) {
 
