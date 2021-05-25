@@ -65,7 +65,7 @@ const editor = (parameters) => {
 			// Save content
 			if (!previousState.eq(view.state.doc)) {
 
-				// TODO: something about DOMSerializer breaks everything when creating a list
+				// TODO something about DOMSerializer breaks everything when creating a list
 				console.log(view.state.doc.content)
 				try {
 					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)
