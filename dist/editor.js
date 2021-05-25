@@ -13415,7 +13415,7 @@ class MenuView {
 		setupInputListeners(this.editorView, input, inputCloseBtn);
 		this.dom.appendChild(linkPrompt);
 
-		console.log('this.dom1', this.dom);
+		// console.log('this.dom1', this.dom)
 
 		// Run conversions on item array
 		// this.items.forEach((item, index) => {
@@ -13479,7 +13479,7 @@ class MenuView {
 
 		// this.editorView.dom.appendChild(this.dom)
 
-		console.log('this.dom2', this.dom);
+		// console.log('this.dom2', this.dom)
 
 		// Update
 		this.update(editorView, null);
