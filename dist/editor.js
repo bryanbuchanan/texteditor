@@ -4411,6 +4411,34 @@ function joinable(a, b) {
   return a && b && !a.isLeaf && a.canAppend(b)
 }
 
+// :: (Node, number, ?number) → ?number
+// Find an ancestor of the given position that can be joined to the
+// block before (or after if `dir` is positive). Returns the joinable
+// point, if any.
+function joinPoint(doc, pos, dir) {
+  if ( dir === void 0 ) dir = -1;
+
+  var $pos = doc.resolve(pos);
+  for (var d = $pos.depth;; d--) {
+    var before = (void 0), after = (void 0), index = $pos.index(d);
+    if (d == $pos.depth) {
+      before = $pos.nodeBefore;
+      after = $pos.nodeAfter;
+    } else if (dir > 0) {
+      before = $pos.node(d + 1);
+      index++;
+      after = $pos.node(d).maybeChild(index);
+    } else {
+      before = $pos.node(d).maybeChild(index - 1);
+      after = $pos.node(d + 1);
+    }
+    if (before && !before.isTextblock && joinable(before, after) &&
+        $pos.node(d).canReplace(index, index + 1)) { return pos }
+    if (d == 0) { break }
+    pos = dir < 0 ? $pos.before(d) : $pos.after(d);
+  }
+}
+
 // :: (number, ?number) → this
 // Join the blocks around the given position. If depth is 2, their
 // last and first siblings are also joined, and so on.
@@ -11770,6 +11798,44 @@ function findCutAfter($pos) {
 }
 
 // :: (EditorState, ?(tr: Transaction)) → bool
+// Join the selected block or, if there is a text selection, the
+// closest ancestor block of the selection that can be joined, with
+// the sibling above it.
+function joinUp(state, dispatch) {
+  var sel = state.selection, nodeSel = sel instanceof NodeSelection, point;
+  if (nodeSel) {
+    if (sel.node.isTextblock || !canJoin(state.doc, sel.from)) { return false }
+    point = sel.from;
+  } else {
+    point = joinPoint(state.doc, sel.from, -1);
+    if (point == null) { return false }
+  }
+  if (dispatch) {
+    var tr = state.tr.join(point);
+    if (nodeSel) { tr.setSelection(NodeSelection.create(tr.doc, point - state.doc.resolve(point).nodeBefore.nodeSize)); }
+    dispatch(tr.scrollIntoView());
+  }
+  return true
+}
+
+// :: (EditorState, ?(tr: Transaction)) → bool
+// Join the selected block, or the closest ancestor of the selection
+// that can be joined, with the sibling after it.
+function joinDown(state, dispatch) {
+  var sel = state.selection, point;
+  if (sel instanceof NodeSelection) {
+    if (sel.node.isTextblock || !canJoin(state.doc, sel.to)) { return false }
+    point = sel.to;
+  } else {
+    point = joinPoint(state.doc, sel.to, 1);
+    if (point == null) { return false }
+  }
+  if (dispatch)
+    { dispatch(state.tr.join(point).scrollIntoView()); }
+  return true
+}
+
+// :: (EditorState, ?(tr: Transaction)) → bool
 // Lift the selected block, or the closest ancestor block of the
 // selection that can be lifted, out of its parent node.
 function lift(state, dispatch) {
@@ -11896,6 +11962,21 @@ function splitBlock(state, dispatch) {
     }
     dispatch(tr.scrollIntoView());
   }
+  return true
+}
+
+// :: (EditorState, ?(tr: Transaction)) → bool
+// Move the selection to the node wrapping the current selection, if
+// any. (Will not select the document node.)
+function selectParentNode(state, dispatch) {
+  var ref = state.selection;
+  var $from = ref.$from;
+  var to = ref.to;
+  var pos;
+  var same = $from.sharedDepth(to);
+  if (same == 0) { return false }
+  pos = $from.before(same);
+  if (dispatch) { dispatch(state.tr.setSelection(NodeSelection.create(state.doc, pos))); }
   return true
 }
 
@@ -12142,14 +12223,14 @@ var macBaseKeymap = {
 for (var key in pcBaseKeymap) { macBaseKeymap[key] = pcBaseKeymap[key]; }
 
 // declare global: os, navigator
-var mac$2 = typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
+var mac$3 = typeof navigator != "undefined" ? /Mac/.test(navigator.platform)
           : typeof os != "undefined" ? os.platform() == "darwin" : false;
 
 // :: Object
 // Depending on the detected platform, this will hold
 // [`pcBasekeymap`](#commands.pcBaseKeymap) or
 // [`macBaseKeymap`](#commands.macBaseKeymap).
-var baseKeymap = mac$2 ? macBaseKeymap : pcBaseKeymap;
+var baseKeymap = mac$3 ? macBaseKeymap : pcBaseKeymap;
 
 var base = {
   8: "Backspace",
@@ -12238,9 +12319,9 @@ var shift = {
 var chrome = typeof navigator != "undefined" && /Chrome\/(\d+)/.exec(navigator.userAgent);
 var safari = typeof navigator != "undefined" && /Apple Computer/.test(navigator.vendor);
 var gecko = typeof navigator != "undefined" && /Gecko\/\d+/.test(navigator.userAgent);
-var mac$1 = typeof navigator != "undefined" && /Mac/.test(navigator.platform);
+var mac$2 = typeof navigator != "undefined" && /Mac/.test(navigator.platform);
 var ie = typeof navigator != "undefined" && /MSIE \d|Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
-var brokenModifierNames = chrome && (mac$1 || +chrome[1] < 57) || gecko && mac$1;
+var brokenModifierNames = chrome && (mac$2 || +chrome[1] < 57) || gecko && mac$2;
 
 // Fill in the digit keys
 for (var i = 0; i < 10; i++) base[48 + i] = base[96 + i] = String(i);
@@ -12278,7 +12359,7 @@ function keyName(event) {
 
 // declare global: navigator
 
-var mac = typeof navigator != "undefined" ? /Mac/.test(navigator.platform) : false;
+var mac$1 = typeof navigator != "undefined" ? /Mac/.test(navigator.platform) : false;
 
 function normalizeKeyName(name) {
   var parts = name.split(/-(?!$)/), result = parts[parts.length - 1];
@@ -12290,7 +12371,7 @@ function normalizeKeyName(name) {
     else if (/^a(lt)?$/i.test(mod)) { alt = true; }
     else if (/^(c|ctrl|control)$/i.test(mod)) { ctrl = true; }
     else if (/^s(hift)?$/i.test(mod)) { shift = true; }
-    else if (/^mod$/i.test(mod)) { if (mac) { meta = true; } else { ctrl = true; } }
+    else if (/^mod$/i.test(mod)) { if (mac$1) { meta = true; } else { ctrl = true; } }
     else { throw new Error("Unrecognized modifier name: " + mod) }
   }
   if (alt) { result = "Alt-" + result; }
@@ -13114,6 +13195,47 @@ function doWrapInList(tr, range, wrappers, joinBefore, listType) {
 }
 
 // :: (NodeType) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
+// Build a command that splits a non-empty textblock at the top level
+// of a list item by also splitting that list item.
+function splitListItem(itemType) {
+  return function(state, dispatch) {
+    var ref = state.selection;
+    var $from = ref.$from;
+    var $to = ref.$to;
+    var node = ref.node;
+    if ((node && node.isBlock) || $from.depth < 2 || !$from.sameParent($to)) { return false }
+    var grandParent = $from.node(-1);
+    if (grandParent.type != itemType) { return false }
+    if ($from.parent.content.size == 0 && $from.node(-1).childCount == $from.indexAfter(-1)) {
+      // In an empty block. If this is a nested list, the wrapping
+      // list item should be split. Otherwise, bail out and let next
+      // command handle lifting.
+      if ($from.depth == 2 || $from.node(-3).type != itemType ||
+          $from.index(-2) != $from.node(-2).childCount - 1) { return false }
+      if (dispatch) {
+        var wrap = Fragment.empty, keepItem = $from.index(-1) > 0;
+        // Build a fragment containing empty versions of the structure
+        // from the outer list item to the parent node of the cursor
+        for (var d = $from.depth - (keepItem ? 1 : 2); d >= $from.depth - 3; d--)
+          { wrap = Fragment.from($from.node(d).copy(wrap)); }
+        // Add a second list item with an empty default start node
+        wrap = wrap.append(Fragment.from(itemType.createAndFill()));
+        var tr$1 = state.tr.replace($from.before(keepItem ? null : -1), $from.after(-3), new Slice(wrap, keepItem ? 3 : 2, 2));
+        tr$1.setSelection(state.selection.constructor.near(tr$1.doc.resolve($from.pos + (keepItem ? 3 : 2))));
+        dispatch(tr$1.scrollIntoView());
+      }
+      return true
+    }
+    var nextType = $to.pos == $from.end() ? grandParent.contentMatchAt(0).defaultType : null;
+    var tr = state.tr.delete($from.pos, $to.pos);
+    var types = nextType && [null, {type: nextType}];
+    if (!canSplit(tr.doc, $from.pos, 2, types)) { return false }
+    if (dispatch) { dispatch(tr.split($from.pos, 2, types).scrollIntoView()); }
+    return true
+  }
+}
+
+// :: (NodeType) → (state: EditorState, dispatch: ?(tr: Transaction)) → bool
 // Create a command to lift the list item around the selection up into
 // a wrapping list.
 function liftListItem(itemType) {
@@ -13250,6 +13372,32 @@ function run(view, from, to, text, rules, plugin) {
   return false
 }
 
+// :: (EditorState, ?(Transaction)) → bool
+// This is a command that will undo an input rule, if applying such a
+// rule was the last thing that the user did.
+function undoInputRule(state, dispatch) {
+  var plugins = state.plugins;
+  for (var i = 0; i < plugins.length; i++) {
+    var plugin = plugins[i], undoable = (void 0);
+    if (plugin.spec.isInputRules && (undoable = plugin.getState(state))) {
+      if (dispatch) {
+        var tr = state.tr, toUndo = undoable.transform;
+        for (var j = toUndo.steps.length - 1; j >= 0; j--)
+          { tr.step(toUndo.steps[j].invert(toUndo.docs[j])); }
+        if (undoable.text) {
+          var marks = tr.doc.resolve(undoable.from).marks();
+          tr.replaceWith(undoable.from, undoable.to, state.schema.text(undoable.text, marks));
+        } else {
+          tr.delete(undoable.from, undoable.to);
+        }
+        dispatch(tr);
+      }
+      return true
+    }
+  }
+  return false
+}
+
 // :: InputRule Converts double dashes to an emdash.
 var emDash = new InputRule(/--$/, "—");
 // :: InputRule Converts three dots to an ellipsis character.
@@ -13319,14 +13467,14 @@ function textblockTypeInputRule(regexp, nodeType, getAttrs) {
 // Given a blockquote node type, returns an input rule that turns `"> "`
 // at the start of a textblock into a blockquote.
 function blockQuoteRule(nodeType) {
-return wrappingInputRule(/^\s*>\s$/, nodeType)
+	return wrappingInputRule(/^\s*>\s$/, nodeType)
 }
 
 // : (NodeType) → InputRule
 // Given a list node type, returns an input rule that turns a number
 // followed by a dot at the start of a textblock into an ordered list.
 function orderedListRule(nodeType) {
-return wrappingInputRule(/^(\d+)\.\s$/, nodeType, match => ({order: +match[1]}),
+	return wrappingInputRule(/^(\d+)\.\s$/, nodeType, match => ({order: +match[1]}),
 					   (match, node) => node.childCount + node.attrs.order == +match[1])
 }
 
@@ -13335,14 +13483,14 @@ return wrappingInputRule(/^(\d+)\.\s$/, nodeType, match => ({order: +match[1]}),
 // (dash, plush, or asterisk) at the start of a textblock into a
 // bullet list.
 function bulletListRule(nodeType) {
-return wrappingInputRule(/^\s*([-+*])\s$/, nodeType)
+	return wrappingInputRule(/^\s*([-+*])\s$/, nodeType)
 }
 
 // : (NodeType) → InputRule
 // Given a code block node type, returns an input rule that turns a
 // textblock starting with three backticks into a code block.
 function codeBlockRule(nodeType) {
-return textblockTypeInputRule(/^```$/, nodeType)
+	return textblockTypeInputRule(/^```$/, nodeType)
 }
 
 // : (NodeType, number) → InputRule
@@ -13351,7 +13499,7 @@ return textblockTypeInputRule(/^```$/, nodeType)
 // the start of a textblock into a heading whose level corresponds to
 // the number of `#` signs.
 function headingRule(nodeType, maxLevel) {
-return textblockTypeInputRule(new RegExp("^(#{1," + maxLevel + "})\\s$"),
+	return textblockTypeInputRule(new RegExp("^(#{1," + maxLevel + "})\\s$"),
 							nodeType, match => ({level: match[1].length}))
 }
 
@@ -13359,13 +13507,113 @@ return textblockTypeInputRule(new RegExp("^(#{1," + maxLevel + "})\\s$"),
 // A set of input rules for creating the basic block quotes, lists,
 // code blocks, and heading.
 function buildInputRules(schema) {
-let rules = smartQuotes.concat(ellipsis, emDash), type;
-if (type = schema.nodes.blockquote) rules.push(blockQuoteRule(type));
-if (type = schema.nodes.ordered_list) rules.push(orderedListRule(type));
-if (type = schema.nodes.bullet_list) rules.push(bulletListRule(type));
-if (type = schema.nodes.code_block) rules.push(codeBlockRule(type));
-if (type = schema.nodes.heading) rules.push(headingRule(type, 6));
-return inputRules({rules})
+	let rules = smartQuotes.concat(ellipsis, emDash), type;
+		if (type = schema.nodes.blockquote) rules.push(blockQuoteRule(type));
+		if (type = schema.nodes.ordered_list) rules.push(orderedListRule(type));
+		if (type = schema.nodes.bullet_list) rules.push(bulletListRule(type));
+		if (type = schema.nodes.code_block) rules.push(codeBlockRule(type));
+		if (type = schema.nodes.heading) rules.push(headingRule(type, 6));
+	return inputRules({rules})
+}
+
+const mac = typeof navigator != "undefined" ? /Mac/.test(navigator.platform) : false;
+
+// :: (Schema, ?Object) → Object
+// Inspect the given schema looking for marks and nodes from the
+// basic schema, and if found, add key bindings related to them.
+// This will add:
+//
+// * **Mod-b** for toggling [strong](#schema-basic.StrongMark)
+// * **Mod-i** for toggling [emphasis](#schema-basic.EmMark)
+// * **Mod-`** for toggling [code font](#schema-basic.CodeMark)
+// * **Ctrl-Shift-0** for making the current textblock a paragraph
+// * **Ctrl-Shift-1** to **Ctrl-Shift-Digit6** for making the current
+//   textblock a heading of the corresponding level
+// * **Ctrl-Shift-Backslash** to make the current textblock a code block
+// * **Ctrl-Shift-8** to wrap the selection in an ordered list
+// * **Ctrl-Shift-9** to wrap the selection in a bullet list
+// * **Ctrl->** to wrap the selection in a block quote
+// * **Enter** to split a non-empty textblock in a list item while at
+//   the same time splitting the list item
+// * **Mod-Enter** to insert a hard break
+// * **Mod-_** to insert a horizontal rule
+// * **Backspace** to undo an input rule
+// * **Alt-ArrowUp** to `joinUp`
+// * **Alt-ArrowDown** to `joinDown`
+// * **Mod-BracketLeft** to `lift`
+// * **Escape** to `selectParentNode`
+//
+// You can suppress or map these bindings by passing a `mapKeys`
+// argument, which maps key names (say `"Mod-B"` to either `false`, to
+// remove the binding, or a new key name string.
+function buildKeymap(schema, mapKeys) {
+	let keys = {}, type;
+	function bind(key, cmd) {
+		if (mapKeys) {
+			let mapped = mapKeys[key];
+			if (mapped === false) return
+			if (mapped) key = mapped;
+		}
+		keys[key] = cmd;
+	}
+
+
+	bind("Mod-z", undo);
+	bind("Shift-Mod-z", redo);
+	bind("Backspace", undoInputRule);
+	if (!mac) bind("Mod-y", redo);
+
+	bind("Alt-ArrowUp", joinUp);
+	bind("Alt-ArrowDown", joinDown);
+	bind("Mod-BracketLeft", lift);
+	bind("Escape", selectParentNode);
+
+	if (type = schema.marks.strong) {
+		bind("Mod-b", toggleMark(type));
+		bind("Mod-B", toggleMark(type));
+	}
+	if (type = schema.marks.em) {
+		bind("Mod-i", toggleMark(type));
+		bind("Mod-I", toggleMark(type));
+	}
+	// if (type = schema.marks.code)
+	// 	bind("Mod-`", toggleMark(type))
+
+	// if (type = schema.nodes.bullet_list)
+	// 	bind("Shift-Ctrl-8", wrapInList(type))
+	// if (type = schema.nodes.ordered_list)
+	// 	bind("Shift-Ctrl-9", wrapInList(type))
+	// if (type = schema.nodes.blockquote)
+	// 	bind("Ctrl->", wrapIn(type))
+	if (type = schema.nodes.hard_break) {
+		let br = type, cmd = chainCommands(exitCode, (state, dispatch) => {
+			dispatch(state.tr.replaceSelectionWith(br.create()).scrollIntoView());
+			return true
+		});
+		bind("Mod-Enter", cmd);
+		bind("Shift-Enter", cmd);
+		if (mac) bind("Ctrl-Enter", cmd);
+	}
+	if (type = schema.nodes.list_item) {
+		bind("Enter", splitListItem(type));
+		// bind("Mod-[", liftListItem(type))
+		// bind("Mod-]", sinkListItem(type))
+	}
+	// if (type = schema.nodes.paragraph)
+	// 	bind("Shift-Ctrl-0", setBlockType(type))
+	// if (type = schema.nodes.code_block)
+	// 	bind("Shift-Ctrl-\\", setBlockType(type))
+	// if (type = schema.nodes.heading)
+	// 	for (let i = 1; i <= 6; i++) bind("Shift-Ctrl-" + i, setBlockType(type, { level: i }))
+	// if (type = schema.nodes.horizontal_rule) {
+	// 	let hr = type
+	// 	bind("Mod-_", (state, dispatch) => {
+	// 		dispatch(state.tr.replaceSelectionWith(hr.create()).scrollIntoView())
+	// 		return true
+	// 	})
+	// }
+
+	return keys
 }
 
 // Utility in place of native chainCommands, to prevent it from stopping on first truthy value
@@ -13614,11 +13862,6 @@ class MenuView {
 		setupInputListeners(this.editorView, input, inputCloseBtn);
 		this.dom.appendChild(linkPrompt);
 
-		// console.log('this.dom1', this.dom)
-
-		// Run conversions on item array
-		// this.items.forEach((item, index) => {
-
 		// Run conversions on item array
 		for (const item of this.items) {
 
@@ -13667,8 +13910,6 @@ class MenuView {
 			} 
 		}
 		// Append to container
-		// items.forEach(({ dom }) => this.dom.appendChild(dom));
-
 		for (const item of this.items) {
 			// Wrap button
 			item.dom = stringToDom(`<div title="${item.title}" class="texteditor__button texteditor__button--${item.type} js-${item.type}">${item.icon}</div>`);
@@ -13676,13 +13917,8 @@ class MenuView {
 			this.dom.appendChild(item.dom);
 		}
 
-		// this.editorView.dom.appendChild(this.dom)
-
-		// console.log('this.dom2', this.dom)
-
 		// Update
 		this.update(editorView, null);
-		// this.update() 
 
 		// Assign commands
 		this.dom.addEventListener('mousedown', e => {
@@ -13693,10 +13929,6 @@ class MenuView {
 			items.forEach(({ command, dom }) => {
 				if (typeof command === "function") {
 					if (dom.contains(e.target)) {
-
-						console.log('command', command);
-						console.log('dom', dom);
-						
 						command(editorView.state, editorView.dispatch, editorView);
 					}
 				}
@@ -13715,7 +13947,6 @@ class MenuView {
 			}
 		});
 
-		// TODO find a better way to identify menu
 		let menu = view.dom.parentNode.querySelector('.texteditor__menu');
 
 		if (menu) {
@@ -13831,25 +14062,31 @@ const Editor = (parameters) => {
 
     // Define state
     const state = EditorState.create({
-		autoInput: true,
     	doc: DOMParser.fromSchema(mySchema).parse(content),
     	plugins: [
+			menu,
 			buildInputRules(mySchema),
 			history(),
+			keymap(buildKeymap(mySchema)),
 			keymap(baseKeymap),
-			keymap({
-				"Shift-Enter": (state, dispatch) =>
-					dispatch(
-						state.tr
-						.replaceSelectionWith(mySchema.nodes.hard_break.create())
-						.scrollIntoView()
-					),
-				"Mod-b": toggleMark(mySchema.marks.strong),
-				"Mod-i": toggleMark(mySchema.marks.em),
-				"Mod-z": undo,
-				"Mod-y": redo,
-			}),
-			menu,
+
+			// keymap({
+			// 	"Mod-z": undo,
+			// 	"Mod-y": redo,
+			// }),
+
+			// keymap({
+			// 	"Shift-Enter": (state, dispatch) =>
+			// 		dispatch(
+			// 			state.tr
+			// 			.replaceSelectionWith(mySchema.nodes.hard_break.create())
+			// 			.scrollIntoView()
+			// 		),
+			// 	"Mod-b": toggleMark(mySchema.marks.strong),
+			// 	"Mod-i": toggleMark(mySchema.marks.em),
+			// 	"Mod-z": undo,
+			// 	"Mod-y": redo,
+			// }),
 		],
     });
 
@@ -13866,35 +14103,20 @@ const Editor = (parameters) => {
 			// Save content
 			if (!previousState.eq(view.state.doc)) {
 
-				// TODO something about DOMSerializer breaks everything when creating a list
-				// console.log(view.state.doc.content)
-				try {
-
-					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content);
-					const html = toHTML(fragment);
-					const id = el.dataset.id ?? el.id ?? "About 350";
-			
-					// Send data to callback function
-					parameters.save({
-						id: id,
-						html: html
-					});
-
-				} catch(error) {
-					console.log(error);
-				}
+				const html = view.dom.innerHTML;
+				const id = el.dataset.id ?? el.id ?? "About 350";
+		
+				// Send data to callback function
+				parameters.save({
+					id: id,
+					html: html
+				});
 
 			}
     	},
     	handleDOMEvents: {}, 
     });
 
-};
-
-const toHTML = (string) => {
-	const div = document.createElement('div');
-	div.appendChild(string);
-	return div.innerHTML
 };
 
 export default Editor;

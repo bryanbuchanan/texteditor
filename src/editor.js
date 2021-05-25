@@ -1,18 +1,16 @@
 
 import { EditorState } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import { Schema, DOMParser, DOMSerializer } from "prosemirror-model"
+import { Schema, DOMParser } from "prosemirror-model"
 
 import { schema } from "prosemirror-schema-basic"
-import { baseKeymap, toggleMark } from "prosemirror-commands"
+import { baseKeymap } from "prosemirror-commands"
 import { keymap } from "prosemirror-keymap"
-import { undo, redo, history } from "prosemirror-history"
+import { history } from "prosemirror-history"
 import { addListNodes } from "prosemirror-schema-list"
 
-// import { addListNodes } from "prosemirror-inputrules"
 import { buildInputRules } from "./inputrules"
-
-// import {schema, defaultMarkdownParser, defaultMarkdownSerializer} from "prosemirror-markdown"
+import { buildKeymap } from "./keymap"
 
 import { menuPlugin } from "./menuPlugin.js"
 
@@ -37,25 +35,31 @@ const Editor = (parameters) => {
 
     // Define state
     const state = EditorState.create({
-		autoInput: true,
     	doc: DOMParser.fromSchema(mySchema).parse(content),
     	plugins: [
+			menu,
 			buildInputRules(mySchema),
 			history(),
+			keymap(buildKeymap(mySchema)),
 			keymap(baseKeymap),
-			keymap({
-				"Shift-Enter": (state, dispatch) =>
-					dispatch(
-						state.tr
-						.replaceSelectionWith(mySchema.nodes.hard_break.create())
-						.scrollIntoView()
-					),
-				"Mod-b": toggleMark(mySchema.marks.strong),
-				"Mod-i": toggleMark(mySchema.marks.em),
-				"Mod-z": undo,
-				"Mod-y": redo,
-			}),
-			menu,
+
+			// keymap({
+			// 	"Mod-z": undo,
+			// 	"Mod-y": redo,
+			// }),
+
+			// keymap({
+			// 	"Shift-Enter": (state, dispatch) =>
+			// 		dispatch(
+			// 			state.tr
+			// 			.replaceSelectionWith(mySchema.nodes.hard_break.create())
+			// 			.scrollIntoView()
+			// 		),
+			// 	"Mod-b": toggleMark(mySchema.marks.strong),
+			// 	"Mod-i": toggleMark(mySchema.marks.em),
+			// 	"Mod-z": undo,
+			// 	"Mod-y": redo,
+			// }),
 		],
     })
 
@@ -72,23 +76,14 @@ const Editor = (parameters) => {
 			// Save content
 			if (!previousState.eq(view.state.doc)) {
 
-				// TODO something about DOMSerializer breaks everything when creating a list
-				// console.log(view.state.doc.content)
-				try {
-
-					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)
-					const html = toHTML(fragment)
-					const id = el.dataset.id ?? el.id ?? "About 350"
-			
-					// Send data to callback function
-					parameters.save({
-						id: id,
-						html: html
-					})
-
-				} catch(error) {
-					console.log(error)
-				}
+				const html = view.dom.innerHTML
+				const id = el.dataset.id ?? el.id ?? "About 350"
+		
+				// Send data to callback function
+				parameters.save({
+					id: id,
+					html: html
+				})
 
 			}
     	},

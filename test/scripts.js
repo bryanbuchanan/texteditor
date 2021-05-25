@@ -12,10 +12,10 @@ for (const text of document.querySelectorAll('.text')) {
 			{ type: "h2", title: "Large Heading", icon: '<i class="fal fa-heading"></i>' },
 			{ type: "h3", title: "Small Heading", icon: '<i class="fal fa-heading"></i>' },
 			{ type: "divider", icon: '' },
-			// { type: "ul", title: "Bullet List", icon: '<i class="fal fa-list"></i>' },
-			// { type: "ol", title: "Numbered List", icon: '<i class="fal fa-list-ol"></i>' },
+			{ type: "ul", title: "Bullet List", icon: '<i class="fal fa-list"></i>' },
+			{ type: "ol", title: "Numbered List", icon: '<i class="fal fa-list-ol"></i>' },
 			{ type: "blockquote", title: "Quote", icon: '<i class="fal fa-quote-left"></i>' },
-			// { type: "hr", title: "Horizontal Line", icon: 'hr' }
+			{ type: "hr", title: "Horizontal Line", icon: 'hr' }
 		],
 		save: (data) => {
 			console.log(data)

@@ -30,11 +30,6 @@ class MenuView {
 		setupInputListeners(this.editorView, input, inputCloseBtn);
 		this.dom.appendChild(linkPrompt);
 
-		// console.log('this.dom1', this.dom)
-
-		// Run conversions on item array
-		// this.items.forEach((item, index) => {
-
 		// Run conversions on item array
 		for (const item of this.items) {
 
@@ -84,8 +79,6 @@ class MenuView {
 		};
 
 		// Append to container
-		// items.forEach(({ dom }) => this.dom.appendChild(dom));
-
 		for (const item of this.items) {
 			// Wrap button
 			item.dom = stringToDom(`<div title="${item.title}" class="texteditor__button texteditor__button--${item.type} js-${item.type}">${item.icon}</div>`)
@@ -93,13 +86,8 @@ class MenuView {
 			this.dom.appendChild(item.dom)
 		}
 
-		// this.editorView.dom.appendChild(this.dom)
-
-		// console.log('this.dom2', this.dom)
-
 		// Update
 		this.update(editorView, null);
-		// this.update() 
 
 		// Assign commands
 		this.dom.addEventListener('mousedown', e => {
@@ -110,10 +98,6 @@ class MenuView {
 			items.forEach(({ command, dom }) => {
 				if (typeof command === "function") {
 					if (dom.contains(e.target)) {
-
-						console.log('command', command)
-						console.log('dom', dom)
-						
 						command(editorView.state, editorView.dispatch, editorView);
 					}
 				}
@@ -132,7 +116,6 @@ class MenuView {
 			}
 		});
 
-		// TODO find a better way to identify menu
 		let menu = view.dom.parentNode.querySelector('.texteditor__menu')
 
 		if (menu) {
