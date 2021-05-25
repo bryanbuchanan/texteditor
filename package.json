@@ -1,5 +1,5 @@
 {
-  "name": "@22slides/texteditor",
+  "name": "texteditor",
   "version": "1.0.0",
   "private": true,
   "main": "dist/editor.js",
