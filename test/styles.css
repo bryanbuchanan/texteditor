@@ -5,7 +5,6 @@
   color: #fff;
   background: #222;
   display: none;
-  padding: 5px;
 }
 .textmenu.active {
   display: flex;

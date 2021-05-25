@@ -14,27 +14,28 @@ class MenuView {
 	constructor(items, editorView) {
 
 		this.items = items;
-		this.editorView = editorView;
+		this.editorView = editorView
 
 		this.dom = document.createElement("div");
 		this.dom.className = "textmenu js-textmenu";
 		const schema = editorView.state.schema;
+
 		// Build link input prompt
 		let container = document.createElement("div");
 		container.innerHTML = '<div class="textmenu__link"><input class="textmenu__linkinput" type="text" placeholder="Enter an address..."><div class="textmenu__linkclose">x</div></div>';
-
 		let linkPrompt = container.querySelector("*");
 		const input = container.querySelector("input");
 		const inputCloseBtn = container.querySelector(".textmenu__linkclose");
-
 		setupInputListeners(this.editorView, input, inputCloseBtn);
-
 		this.dom.appendChild(linkPrompt);
+
+		console.log('this.dom1', this.dom)
 
 		// Run conversions on item array
 		// this.items.forEach((item, index) => {
 
-		for (const item of items) {
+		// Run conversions on item array
+		for (const item of this.items) {
 
 			// Convert strings to dom nodes
 			if (typeof item.dom === "string") {
@@ -86,17 +87,19 @@ class MenuView {
 
 		// FIXME menu item doms get moved to last menu bar
 		for (const item of this.items) {
-			console.log(this.dom)
-			console.log(item.dom)
 			this.dom.appendChild(item.dom)
 		}
+
+		// this.editorView.dom.appendChild(this.dom)
+
+		console.log('this.dom2', this.dom)
 
 		// Update
 		this.update(editorView, null);
 		// this.update() 
 
 		// Assign commands
-		this.dom.addEventListener("mousedown", e => {
+		this.dom.addEventListener('mousedown', e => {
 			e.preventDefault();
 			if (!e.target.className.includes('textmenu__linkinput')) {
 				editorView.focus();
@@ -122,7 +125,8 @@ class MenuView {
 			}
 		});
 
-		let menu = this.editorView.dom.closest('.editor').querySelector('.js-textmenu');
+		// TODO find a better way to identify menu
+		let menu = this.editorView.dom.closest('.text').querySelector('.js-textmenu');
 
 		if (menu) {
 
@@ -148,8 +152,8 @@ class MenuView {
 					let box = menu.offsetParent.getBoundingClientRect()
 					let menuDimensions = menu.getBoundingClientRect()
 
-					console.log('box', box)
-					console.log('menuDimensions', menuDimensions)
+					// console.log('box', box)
+					// console.log('menuDimensions', menuDimensions)
 					
 					let left = ((start.left + end.left) / 2) - box.x
 					left = left - (menu.offsetWidth / 2)
@@ -160,7 +164,7 @@ class MenuView {
 					// menu.style.bottom = (box.bottom - start.bottom + menuDimensions.height) + "px"
 
 					let top = start.top - box.top - menuDimensions.height
-					console.log('top', top)
+					// console.log('top', top)
 					menu.style.top = top + "px"
 
 					// let width = menu.scrollWidth;
@@ -206,19 +210,22 @@ export function menuPlugin(items) {
 					return false;
 				},
 				blur: (view, event) => {
+
 					if (view.wasFocused) {
-						let container = event.target.closest(".editor");
-						container.classList.remove("focused");
+
+						let container = event.target.parentNode
+						
 						// handle linkinput
-						const linkInput = document.querySelector(".js-textmenu");
-						const linkInputActive = [...linkInput.classList].includes("link");
+						const linkInput = document.querySelector('.js-textmenu')
+						const linkInputActive = [...linkInput.classList].includes('link')
 						if (!linkInputActive) {
 							container
-								.querySelector(".js-textmenu")
-								.classList.remove("active");
+								.querySelector('.js-textmenu')
+								.classList.remove('active')
 						}
 					}
-					return false;
+					return false
+
 				},
 			},
 		},

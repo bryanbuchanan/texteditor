@@ -11,19 +11,19 @@ import { addListNodes } from "prosemirror-schema-list"
 
 import { menuPlugin } from "./menuPlugin.js"
 
-const editor = (parameters) => {
+const Editor = (parameters) => {
 
-  // Get all elements that should contain an editor
-  const texts = document.querySelectorAll(parameters.selector)
+	const el = parameters.element
 
-  // Loop through each one
-  for (const text of texts) {
-
-    const content = text.querySelector(parameters.content)
-    const editor = text.querySelector(parameters.editor)
+	// Markup changes to accomodate text editor
+	el.innerHTML = `<div class="text__content" style="display:none!important;">${el.innerHTML}</div>` // Wrap/hide existing content
+	const content = el.querySelector('.text__content')
+	const editor = document.createElement('div')
+	editor.classList.add('js-editor')
+	el.append(editor)
 
     // Create instance of menu plugin
-    const menu = menuPlugin(parameters.menu)
+    const menu = new menuPlugin(parameters.menu)
 
     const mySchema = new Schema({
     	nodes: addListNodes(schema.spec.nodes, "paragraph block*", "block"),
@@ -68,18 +68,17 @@ const editor = (parameters) => {
 				// TODO something about DOMSerializer breaks everything when creating a list
 				console.log(view.state.doc.content)
 				try {
+
 					const fragment = DOMSerializer.fromSchema(schema).serializeFragment(view.state.doc.content)
-					const div = document.createElement('div')
-					div.appendChild(fragment)
-					const html = div.innerHTML
-					const parentElement = view.dom.closest(parameters.selector)
-					const id = parentElement.dataset.id ?? parentElement.id ?? "About 350"
+					const html = toHTML(fragment)
+					const id = el.dataset.id ?? el.id ?? "About 350"
 			
 					// Send data to callback function
 					parameters.save({
 						id: id,
 						html: html
 					})
+
 				} catch(error) {
 					console.log(error)
 				}
@@ -88,9 +87,14 @@ const editor = (parameters) => {
     	},
     	handleDOMEvents: {}, 
     })
-  }
 
 }
 
-export default editor
+const toHTML = (string) => {
+	const div = document.createElement('div')
+	div.appendChild(string)
+	return div.innerHTML
+}
+
+export default Editor
 
