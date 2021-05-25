@@ -99,9 +99,6 @@ class MenuView {
 
 	update(view, prevState) {
 
-		console.log(this.editorView)
-		// console.log(this.editorView.state)
-
 		// Set menu buttons to 'active', if current selection matches the command the button would assign
 		this.items.forEach(({ dom, checkActive }) => {
 			if (checkActive && checkActive(this.editorView.state)) {
