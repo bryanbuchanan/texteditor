@@ -129,8 +129,15 @@ class MenuView {
         end = this.editorView.coordsAtPos(to);
 
       if (menu.offsetParent) {
-        let box = menu.offsetParent.getBoundingClientRect();
+        // let box = menu.offsetParent.getBoundingClientRect();
         let left = (start.left + end.left) / 2;
+        let width = menu.scrollWidth;
+        let windowWidth = window.innerWidth;
+        if (left - width / 2 < 0) {
+          left = width / 2;
+        } else if (left + width / 2 > windowWidth) {
+          left = windowWidth - width / 2;
+        }
         menu.style.left = left + "px";
         // Ensure that menu visible on top of the document
         if (start.top < 50) {
@@ -145,6 +152,7 @@ class MenuView {
   destroy() {
     this.dom.remove();
   }
+  
 }
 
 export function menuPlugin(items) {

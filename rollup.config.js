@@ -1,39 +1,41 @@
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import postcss from 'rollup-plugin-postcss';
-import serve from 'rollup-plugin-serve';
-import livereload from 'rollup-plugin-livereload';
+import resolve from '@rollup/plugin-node-resolve'
+import commonjs from '@rollup/plugin-commonjs'
+import postcss from 'rollup-plugin-postcss'
+import serve from 'rollup-plugin-serve'
+import livereload from 'rollup-plugin-livereload'
+import { terser } from 'rollup-plugin-terser'
 
 const dev = process.env.ROLLUP_WATCH;
 
 export default [
 	{
-		input: './src/scripts.js',
+		input: './src/editor.js',
 		output: {
-			file: './dist/scripts.js',
-			format: 'iife',
-			sourcemap: true
+			file: './dist/editor.js',
+			format: 'esm',
+			sourcemap: false,
+			// plugins: [!dev && terser()]
 		},
 		plugins: [
 			resolve(),
 			commonjs(),
 			dev && serve(),
 			dev && livereload({
-				watch: './dist'
+				watch: './'
 			})
 		]	
 	},
 	{
-		input: './src/styles.scss',
+		input: './test/styles.scss',
 		output: {
-			file: './dist/styles.css'
+			file: './test/styles.css'
 		},
 		plugins: [
 			postcss({
 				extract: true,
 				minimize: false,
-				sourceMap: true
+				sourceMap: false
 			})
 		]
 	}
-];
+]
