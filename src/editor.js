@@ -80,7 +80,7 @@ const Editor = (parameters) => {
 				const id = el.dataset.id ?? el.id ?? "About 350"
 		
 				// Send data to callback function
-				parameters.save({
+				parameters.change({
 					id: id,
 					html: html
 				})
