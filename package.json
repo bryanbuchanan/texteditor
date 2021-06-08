@@ -1,7 +1,6 @@
 {
-  "name": "texteditor",
+  "name": "22texteditor",
   "version": "1.0.0",
-  "private": true,
   "main": "dist/editor.js",
   "scripts": {
     "build": "rollup -c",
