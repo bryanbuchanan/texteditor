@@ -1,5 +1,3 @@
-
-(function(l, r) { if (l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (window.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(window.document);
 // ::- Persistent data structure representing an ordered mapping from
 // strings to values, with some convenient update methods.
 function OrderedMap(content) {
@@ -2697,7 +2695,7 @@ function gatherMarks(schema, marks) {
 // a ProseMirror document conforming to a given schema. Its behavior
 // is defined by an array of [rules](#model.ParseRule).
 var DOMParser = function DOMParser(schema, rules) {
-  var this$1 = this;
+  var this$1$1 = this;
 
   // :: Schema
   // The schema into which the parser parses.
@@ -2710,8 +2708,8 @@ var DOMParser = function DOMParser(schema, rules) {
   this.styles = [];
 
   rules.forEach(function (rule) {
-    if (rule.tag) { this$1.tags.push(rule); }
-    else if (rule.style) { this$1.styles.push(rule); }
+    if (rule.tag) { this$1$1.tags.push(rule); }
+    else if (rule.style) { this$1$1.styles.push(rule); }
   });
 
   // Only normalize list elements when lists in the schema can't directly contain themselves
@@ -3056,7 +3054,7 @@ ParseContext.prototype.readStyles = function readStyles (styles) {
 // false. Otherwise, apply it, use its return value to drive the way
 // the node's content is wrapped, and return true.
 ParseContext.prototype.addElementByRule = function addElementByRule (dom, rule, continueAfter) {
-    var this$1 = this;
+    var this$1$1 = this;
 
   var sync, nodeType, markType, mark;
   if (rule.node) {
@@ -3079,7 +3077,7 @@ ParseContext.prototype.addElementByRule = function addElementByRule (dom, rule, 
     this.addElement(dom, continueAfter);
   } else if (rule.getContent) {
     this.findInside(dom);
-    rule.getContent(dom, this.parser.schema).forEach(function (node) { return this$1.insertNode(node); });
+    rule.getContent(dom, this.parser.schema).forEach(function (node) { return this$1$1.insertNode(node); });
   } else {
     var contentDOM = rule.contentElement;
     if (typeof contentDOM == "string") { contentDOM = dom.querySelector(contentDOM); }
@@ -3244,7 +3242,7 @@ ParseContext.prototype.findInText = function findInText (textNode) {
 // Determines whether the given [context
 // string](#ParseRule.context) matches this context.
 ParseContext.prototype.matchesContext = function matchesContext (context) {
-    var this$1 = this;
+    var this$1$1 = this;
 
   if (context.indexOf("|") > -1)
     { return context.split(/\s*\|\s*/).some(this.matchesContext, this) }
@@ -3262,7 +3260,7 @@ ParseContext.prototype.matchesContext = function matchesContext (context) {
           { if (match(i - 1, depth)) { return true } }
         return false
       } else {
-        var next = depth > 0 || (depth == 0 && useRoot) ? this$1.nodes[depth].type
+        var next = depth > 0 || (depth == 0 && useRoot) ? this$1$1.nodes[depth].type
             : option && depth >= minDepth ? option.node(depth - minDepth).type
             : null;
         if (!next || (next.name != part && next.groups.indexOf(part) == -1))
@@ -3416,7 +3414,7 @@ var DOMSerializer = function DOMSerializer(nodes, marks) {
 // document, should be passed so that the serializer can create
 // nodes.
 DOMSerializer.prototype.serializeFragment = function serializeFragment (fragment, options, target) {
-    var this$1 = this;
+    var this$1$1 = this;
     if ( options === void 0 ) options = {};
 
   if (!target) { target = doc(options).createDocumentFragment(); }
@@ -3428,7 +3426,7 @@ DOMSerializer.prototype.serializeFragment = function serializeFragment (fragment
       var keep = 0, rendered = 0;
       while (keep < active.length && rendered < node.marks.length) {
         var next = node.marks[rendered];
-        if (!this$1.marks[next.type.name]) { rendered++; continue }
+        if (!this$1$1.marks[next.type.name]) { rendered++; continue }
         if (!next.eq(active[keep]) || next.type.spec.spanning === false) { break }
         keep += 2; rendered++;
       }
@@ -3438,7 +3436,7 @@ DOMSerializer.prototype.serializeFragment = function serializeFragment (fragment
       }
       while (rendered < node.marks.length) {
         var add = node.marks[rendered++];
-        var markDOM = this$1.serializeMark(add, node.isInline, options);
+        var markDOM = this$1$1.serializeMark(add, node.isInline, options);
         if (markDOM) {
           active.push(add, top);
           top.appendChild(markDOM.dom);
@@ -3446,7 +3444,7 @@ DOMSerializer.prototype.serializeFragment = function serializeFragment (fragment
         }
       }
     }
-    top.appendChild(this$1.serializeNode(node, options));
+    top.appendChild(this$1$1.serializeNode(node, options));
   });
 
   return target
@@ -4313,18 +4311,18 @@ Transform.prototype.wrap = function(range, wrappers) {
 // Set the type of all textblocks (partly) between `from` and `to` to
 // the given node type with the given attributes.
 Transform.prototype.setBlockType = function(from, to, type, attrs) {
-  var this$1 = this;
+  var this$1$1 = this;
   if ( to === void 0 ) to = from;
 
   if (!type.isTextblock) { throw new RangeError("Type given to setBlockType should be a textblock") }
   var mapFrom = this.steps.length;
   this.doc.nodesBetween(from, to, function (node, pos) {
-    if (node.isTextblock && !node.hasMarkup(type, attrs) && canChangeType(this$1.doc, this$1.mapping.slice(mapFrom).map(pos), type)) {
+    if (node.isTextblock && !node.hasMarkup(type, attrs) && canChangeType(this$1$1.doc, this$1$1.mapping.slice(mapFrom).map(pos), type)) {
       // Ensure all markup that isn't allowed in the new node type is cleared
-      this$1.clearIncompatible(this$1.mapping.slice(mapFrom).map(pos, 1), type);
-      var mapping = this$1.mapping.slice(mapFrom);
+      this$1$1.clearIncompatible(this$1$1.mapping.slice(mapFrom).map(pos, 1), type);
+      var mapping = this$1$1.mapping.slice(mapFrom);
       var startM = mapping.map(pos, 1), endM = mapping.map(pos + node.nodeSize, 1);
-      this$1.step(new ReplaceAroundStep(startM, endM, startM + 1, endM - 1,
+      this$1$1.step(new ReplaceAroundStep(startM, endM, startM + 1, endM - 1,
                                       new Slice(Fragment.from(type.create(attrs, null, node.marks)), 0, 0), 1, true));
       return false
     }
@@ -4531,13 +4529,13 @@ var AddMarkStep = /*@__PURE__*/(function (Step) {
   AddMarkStep.prototype.constructor = AddMarkStep;
 
   AddMarkStep.prototype.apply = function apply (doc) {
-    var this$1 = this;
+    var this$1$1 = this;
 
     var oldSlice = doc.slice(this.from, this.to), $from = doc.resolve(this.from);
     var parent = $from.node($from.sharedDepth(this.to));
     var slice = new Slice(mapFragment(oldSlice.content, function (node, parent) {
-      if (!node.isAtom || !parent.type.allowsMarkType(this$1.mark.type)) { return node }
-      return node.mark(this$1.mark.addToSet(node.marks))
+      if (!node.isAtom || !parent.type.allowsMarkType(this$1$1.mark.type)) { return node }
+      return node.mark(this$1$1.mark.addToSet(node.marks))
     }, parent), oldSlice.openStart, oldSlice.openEnd);
     return StepResult.fromReplace(doc, this.from, this.to, slice)
   };
@@ -4596,11 +4594,11 @@ var RemoveMarkStep = /*@__PURE__*/(function (Step) {
   RemoveMarkStep.prototype.constructor = RemoveMarkStep;
 
   RemoveMarkStep.prototype.apply = function apply (doc) {
-    var this$1 = this;
+    var this$1$1 = this;
 
     var oldSlice = doc.slice(this.from, this.to);
     var slice = new Slice(mapFragment(oldSlice.content, function (node) {
-      return node.mark(this$1.mark.removeFromSet(node.marks))
+      return node.mark(this$1$1.mark.removeFromSet(node.marks))
     }), oldSlice.openStart, oldSlice.openEnd);
     return StepResult.fromReplace(doc, this.from, this.to, slice)
   };
@@ -4642,7 +4640,7 @@ Step.jsonID("removeMark", RemoveMarkStep);
 // :: (number, number, Mark) → this
 // Add the given mark to the inline content between `from` and `to`.
 Transform.prototype.addMark = function(from, to, mark) {
-  var this$1 = this;
+  var this$1$1 = this;
 
   var removed = [], added = [], removing = null, adding = null;
   this.doc.nodesBetween(from, to, function (node, pos, parent) {
@@ -4668,8 +4666,8 @@ Transform.prototype.addMark = function(from, to, mark) {
     }
   });
 
-  removed.forEach(function (s) { return this$1.step(s); });
-  added.forEach(function (s) { return this$1.step(s); });
+  removed.forEach(function (s) { return this$1$1.step(s); });
+  added.forEach(function (s) { return this$1$1.step(s); });
   return this
 };
 
@@ -4679,7 +4677,7 @@ Transform.prototype.addMark = function(from, to, mark) {
 // remove all marks of that type. When it is null, remove all marks of
 // any type.
 Transform.prototype.removeMark = function(from, to, mark) {
-  var this$1 = this;
+  var this$1$1 = this;
   if ( mark === void 0 ) mark = null;
 
   var matched = [], step = 0;
@@ -4715,7 +4713,7 @@ Transform.prototype.removeMark = function(from, to, mark) {
       }
     }
   });
-  matched.forEach(function (m) { return this$1.step(new RemoveMarkStep(m.from, m.to, m.style)); });
+  matched.forEach(function (m) { return this$1$1.step(new RemoveMarkStep(m.from, m.to, m.style)); });
   return this
 };
 
@@ -6013,19 +6011,19 @@ var baseFields = [
 // Object wrapping the part of a state object that stays the same
 // across transactions. Stored in the state's `config` property.
 var Configuration = function Configuration(schema, plugins) {
-  var this$1 = this;
+  var this$1$1 = this;
 
   this.schema = schema;
   this.fields = baseFields.concat();
   this.plugins = [];
   this.pluginsByKey = Object.create(null);
   if (plugins) { plugins.forEach(function (plugin) {
-    if (this$1.pluginsByKey[plugin.key])
+    if (this$1$1.pluginsByKey[plugin.key])
       { throw new RangeError("Adding different instances of a keyed plugin (" + plugin.key + ")") }
-    this$1.plugins.push(plugin);
-    this$1.pluginsByKey[plugin.key] = plugin;
+    this$1$1.plugins.push(plugin);
+    this$1$1.pluginsByKey[plugin.key] = plugin;
     if (plugin.spec.state)
-      { this$1.fields.push(new FieldDesc(plugin.key, plugin.spec.state, plugin)); }
+      { this$1$1.fields.push(new FieldDesc(plugin.key, plugin.spec.state, plugin)); }
   }); }
 };
 
@@ -6768,7 +6766,10 @@ function posAtCoords(view, coords) {
     if (!elt) { return null }
   }
   // Safari's caretRangeFromPoint returns nonsense when on a draggable element
-  if (result.safari && elt.draggable) { node = offset = null; }
+  if (result.safari) {
+    for (var p = elt; node && p; p = parentNode(p))
+      { if (p.draggable) { node = offset = null; } }
+  }
   elt = targetKludge(elt, coords);
   if (node) {
     if (result.gecko && node.nodeType == 1) {
@@ -7356,6 +7357,12 @@ ViewDesc.prototype.setSelection = function setSelection (anchor, head, root, for
       brKludge = prev && (prev.nodeName == "BR" || prev.contentEditable == "false");
     }
   }
+  // Firefox can act strangely when the selection is in front of an
+  // uneditable node. See #1163 and https://bugzilla.mozilla.org/show_bug.cgi?id=1709536
+  if (result.gecko && domSel.focusNode && domSel.focusNode != headDOM.node && domSel.focusNode.nodeType == 1) {
+    var after = domSel.focusNode.childNodes[domSel.focusOffset];
+    if (after && after.contentEditable == "false") { force = true; }
+  }
 
   if (!(force || brKludge && result.safari) &&
       isEquivalentPosition(anchorDOM.node, anchorDOM.offset, domSel.anchorNode, domSel.anchorOffset) &&
@@ -7640,7 +7647,7 @@ var NodeViewDesc = /*@__PURE__*/(function (ViewDesc) {
   };
 
   NodeViewDesc.prototype.parseRule = function parseRule () {
-    var this$1 = this;
+    var this$1$1 = this;
 
     // Experimental kludge to allow opt-in re-parsing of nodes
     if (this.node.type.spec.reparseInView) { return null }
@@ -7651,7 +7658,7 @@ var NodeViewDesc = /*@__PURE__*/(function (ViewDesc) {
     var rule = {node: this.node.type.name, attrs: this.node.attrs};
     if (this.node.type.spec.code) { rule.preserveWhitespace = "full"; }
     if (this.contentDOM && !this.contentLost) { rule.contentElement = this.contentDOM; }
-    else { rule.getContent = function () { return this$1.contentDOM ? Fragment.empty : this$1.node.content; }; }
+    else { rule.getContent = function () { return this$1$1.contentDOM ? Fragment.empty : this$1$1.node.content; }; }
     return rule
   };
 
@@ -7669,7 +7676,7 @@ var NodeViewDesc = /*@__PURE__*/(function (ViewDesc) {
   // separate step, syncs the DOM inside `this.contentDOM` to
   // `this.children`.
   NodeViewDesc.prototype.updateChildren = function updateChildren (view, pos) {
-    var this$1 = this;
+    var this$1$1 = this;
 
     var inline = this.node.inlineContent, off = pos;
     var composition = inline && view.composing && this.localCompositionNode(view, pos);
@@ -7678,7 +7685,7 @@ var NodeViewDesc = /*@__PURE__*/(function (ViewDesc) {
       if (widget.spec.marks)
         { updater.syncToMarks(widget.spec.marks, inline, view); }
       else if (widget.type.side >= 0 && !insideNode)
-        { updater.syncToMarks(i == this$1.node.childCount ? Mark.none : this$1.node.child(i).marks, inline, view); }
+        { updater.syncToMarks(i == this$1$1.node.childCount ? Mark.none : this$1$1.node.child(i).marks, inline, view); }
       // If the next node is a desc matching this widget, reuse it,
       // otherwise insert the widget as a new view desc.
       updater.placeWidget(widget, view, off);
@@ -7871,26 +7878,26 @@ var TextViewDesc = /*@__PURE__*/(function (NodeViewDesc) {
   return TextViewDesc;
 }(NodeViewDesc));
 
-// A dummy desc used to tag trailing BR or span nodes created to work
+// A dummy desc used to tag trailing BR or IMG nodes created to work
 // around contentEditable terribleness.
-var BRHackViewDesc = /*@__PURE__*/(function (ViewDesc) {
-  function BRHackViewDesc () {
+var TrailingHackViewDesc = /*@__PURE__*/(function (ViewDesc) {
+  function TrailingHackViewDesc () {
     ViewDesc.apply(this, arguments);
   }
 
-  if ( ViewDesc ) BRHackViewDesc.__proto__ = ViewDesc;
-  BRHackViewDesc.prototype = Object.create( ViewDesc && ViewDesc.prototype );
-  BRHackViewDesc.prototype.constructor = BRHackViewDesc;
+  if ( ViewDesc ) TrailingHackViewDesc.__proto__ = ViewDesc;
+  TrailingHackViewDesc.prototype = Object.create( ViewDesc && ViewDesc.prototype );
+  TrailingHackViewDesc.prototype.constructor = TrailingHackViewDesc;
 
   var prototypeAccessors$5 = { domAtom: { configurable: true } };
 
-  BRHackViewDesc.prototype.parseRule = function parseRule () { return {ignore: true} };
-  BRHackViewDesc.prototype.matchesHack = function matchesHack () { return this.dirty == NOT_DIRTY };
+  TrailingHackViewDesc.prototype.parseRule = function parseRule () { return {ignore: true} };
+  TrailingHackViewDesc.prototype.matchesHack = function matchesHack () { return this.dirty == NOT_DIRTY };
   prototypeAccessors$5.domAtom.get = function () { return true };
 
-  Object.defineProperties( BRHackViewDesc.prototype, prototypeAccessors$5 );
+  Object.defineProperties( TrailingHackViewDesc.prototype, prototypeAccessors$5 );
 
-  return BRHackViewDesc;
+  return TrailingHackViewDesc;
 }(ViewDesc));
 
 // A separate subclass is used for customized node views, so that the
@@ -8233,7 +8240,7 @@ ViewTreeUpdater.prototype.addTextblockHacks = function addTextblockHacks () {
       this.index++;
     } else {
       var dom = document.createElement("br");
-      this.top.children.splice(this.index++, 0, new BRHackViewDesc(this.top, nothing, dom, null));
+      this.top.children.splice(this.index++, 0, new TrailingHackViewDesc(this.top, nothing, dom, null));
       this.changed = true;
     }
   }
@@ -9104,7 +9111,7 @@ function readDOMChange(view, from, to, typeOver, addedNodes) {
     // Edge just doesn't move the cursor forward when you start typing
     // in an empty block or between br nodes.
     if (sel$2 && !(result.chrome && result.android && view.composing && sel$2.empty &&
-                 (change.from != change.toB || view.lastAndroidDelete < Date.now() - 100) &&
+                 (change.start != change.endB || view.lastAndroidDelete < Date.now() - 100) &&
                  (sel$2.head == chFrom || sel$2.head == tr.mapping.map(chTo) - 1) ||
                  result.ie && sel$2.empty && sel$2.head == chFrom))
       { tr.setSelection(sel$2); }
@@ -9438,7 +9445,7 @@ SelectionState.prototype.eq = function eq (sel) {
 };
 
 var DOMObserver = function DOMObserver(view, handleDOMChange) {
-  var this$1 = this;
+  var this$1$1 = this;
 
   this.view = view;
   this.handleDOMChange = handleDOMChange;
@@ -9446,7 +9453,7 @@ var DOMObserver = function DOMObserver(view, handleDOMChange) {
   this.flushingSoon = -1;
   this.observer = window.MutationObserver &&
     new window.MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) { this$1.queue.push(mutations[i]); }
+      for (var i = 0; i < mutations.length; i++) { this$1$1.queue.push(mutations[i]); }
       // IE11 will sometimes (on backspacing out a single character
       // text node after a BR node) call the observer callback
       // before actually updating the DOM, which will cause
@@ -9454,15 +9461,15 @@ var DOMObserver = function DOMObserver(view, handleDOMChange) {
       if (result.ie && result.ie_version <= 11 && mutations.some(
         function (m) { return m.type == "childList" && m.removedNodes.length ||
              m.type == "characterData" && m.oldValue.length > m.target.nodeValue.length; }))
-        { this$1.flushSoon(); }
+        { this$1$1.flushSoon(); }
       else
-        { this$1.flush(); }
+        { this$1$1.flush(); }
     });
   this.currentSelection = new SelectionState;
   if (useCharData) {
     this.onCharData = function (e) {
-      this$1.queue.push({target: e.target, type: "characterData", oldValue: e.prevValue});
-      this$1.flushSoon();
+      this$1$1.queue.push({target: e.target, type: "characterData", oldValue: e.prevValue});
+      this$1$1.flushSoon();
     };
   }
   this.onSelectionChange = this.onSelectionChange.bind(this);
@@ -9470,10 +9477,10 @@ var DOMObserver = function DOMObserver(view, handleDOMChange) {
 };
 
 DOMObserver.prototype.flushSoon = function flushSoon () {
-    var this$1 = this;
+    var this$1$1 = this;
 
   if (this.flushingSoon < 0)
-    { this.flushingSoon = window.setTimeout(function () { this$1.flushingSoon = -1; this$1.flush(); }, 20); }
+    { this.flushingSoon = window.setTimeout(function () { this$1$1.flushingSoon = -1; this$1$1.flush(); }, 20); }
 };
 
 DOMObserver.prototype.forceFlush = function forceFlush () {
@@ -9493,13 +9500,13 @@ DOMObserver.prototype.start = function start () {
 };
 
 DOMObserver.prototype.stop = function stop () {
-    var this$1 = this;
+    var this$1$1 = this;
 
   if (this.observer) {
     var take = this.observer.takeRecords();
     if (take.length) {
       for (var i = 0; i < take.length; i++) { this.queue.push(take[i]); }
-      window.setTimeout(function () { return this$1.flush(); }, 20);
+      window.setTimeout(function () { return this$1$1.flush(); }, 20);
     }
     this.observer.disconnect();
   }
@@ -9516,10 +9523,10 @@ DOMObserver.prototype.disconnectSelection = function disconnectSelection () {
 };
 
 DOMObserver.prototype.suppressSelectionUpdates = function suppressSelectionUpdates () {
-    var this$1 = this;
+    var this$1$1 = this;
 
   this.suppressingSelectionUpdates = true;
-  setTimeout(function () { return this$1.suppressingSelectionUpdates = false; }, 50);
+  setTimeout(function () { return this$1$1.suppressingSelectionUpdates = false; }, 50);
 };
 
 DOMObserver.prototype.onSelectionChange = function onSelectionChange () {
@@ -9929,7 +9936,7 @@ handlers.mousedown = function (view, event) {
 };
 
 var MouseDown = function MouseDown(view, pos, event, flushed) {
-  var this$1 = this;
+  var this$1$1 = this;
 
   this.view = view;
   this.startDoc = view.state.doc;
@@ -9955,8 +9962,10 @@ var MouseDown = function MouseDown(view, pos, event, flushed) {
   var targetDesc = target ? view.docView.nearestDesc(target, true) : null;
   this.target = targetDesc ? targetDesc.dom : null;
 
+  var ref = view.state;
+  var selection = ref.selection;
   if (targetNode.type.spec.draggable && targetNode.type.spec.selectable !== false ||
-      view.state.selection instanceof NodeSelection && targetPos == view.state.selection.from)
+      selection instanceof NodeSelection && selection.from <= targetPos && selection.to > targetPos)
     { this.mightDrag = {node: targetNode,
                       pos: targetPos,
                       addAttr: this.target && !this.target.draggable,
@@ -9967,7 +9976,7 @@ var MouseDown = function MouseDown(view, pos, event, flushed) {
     if (this.mightDrag.addAttr) { this.target.draggable = true; }
     if (this.mightDrag.setUneditable)
       { setTimeout(function () {
-        if (this$1.view.mouseDown == this$1) { this$1.target.setAttribute("contentEditable", "false"); }
+        if (this$1$1.view.mouseDown == this$1$1) { this$1$1.target.setAttribute("contentEditable", "false"); }
       }, 20); }
     this.view.domObserver.start();
   }
@@ -10013,7 +10022,8 @@ MouseDown.prototype.up = function up (event) {
              // thus doesn't get a reaction from ProseMirror. This
              // works around that.
              (result.chrome && !(this.view.state.selection instanceof TextSelection) &&
-              (pos.pos == this.view.state.selection.from || pos.pos == this.view.state.selection.to))) {
+              Math.min(Math.abs(pos.pos - this.view.state.selection.from),
+                       Math.abs(pos.pos - this.view.state.selection.to)) <= 2)) {
     updateSelection(this.view, Selection.near(this.view.state.doc.resolve(pos.pos)), "pointer");
     event.preventDefault();
   } else {
@@ -10261,9 +10271,13 @@ editHandlers.drop = function (view, e) {
   if (!eventPos) { return }
   var $mouse = view.state.doc.resolve(eventPos.pos);
   if (!$mouse) { return }
-  var slice = dragging && dragging.slice ||
-      parseFromClipboard(view, e.dataTransfer.getData(brokenClipboardAPI ? "Text" : "text/plain"),
-                         brokenClipboardAPI ? null : e.dataTransfer.getData("text/html"), false, $mouse);
+  var slice = dragging && dragging.slice;
+  if (slice) {
+    view.someProp("transformPasted", function (f) { slice = f(slice); });
+  } else {
+    slice = parseFromClipboard(view, e.dataTransfer.getData(brokenClipboardAPI ? "Text" : "text/plain"),
+                               brokenClipboardAPI ? null : e.dataTransfer.getData("text/html"), false, $mouse);
+  }
   var move = dragging && !e[dragCopyModifier];
   if (view.someProp("handleDrop", function (f) { return f(view, e, slice || Slice.empty, move); })) {
     e.preventDefault();
@@ -10652,14 +10666,14 @@ DecorationSet.prototype.add = function add (doc, decorations) {
 };
 
 DecorationSet.prototype.addInner = function addInner (doc, decorations, offset) {
-    var this$1 = this;
+    var this$1$1 = this;
 
   var children, childIndex = 0;
   doc.forEach(function (childNode, childOffset) {
     var baseOffset = childOffset + offset, found;
     if (!(found = takeSpansForNode(decorations, childNode, baseOffset))) { return }
 
-    if (!children) { children = this$1.children.slice(); }
+    if (!children) { children = this$1$1.children.slice(); }
     while (childIndex < children.length && children[childIndex] < childOffset) { childIndex += 3; }
     if (children[childIndex] == childOffset)
       { children[childIndex + 2] = children[childIndex + 2].addInner(childNode, found, baseOffset + 1); }
@@ -11131,7 +11145,7 @@ EditorView.prototype.updateState = function updateState (state) {
 };
 
 EditorView.prototype.updateStateInner = function updateStateInner (state, reconfigured) {
-    var this$1 = this;
+    var this$1$1 = this;
 
   var prev = this.state, redraw = false, updateSel = false;
   // When stored marks are added, stop composition, so that they can
@@ -11202,7 +11216,7 @@ EditorView.prototype.updateStateInner = function updateStateInner (state, reconf
     this.dom.scrollTop = 0;
   } else if (scroll == "to selection") {
     var startDOM = this.root.getSelection().focusNode;
-    if (this.someProp("handleScrollToSelection", function (f) { return f(this$1); }))
+    if (this.someProp("handleScrollToSelection", function (f) { return f(this$1$1); }))
       ; // Handled
     else if (state.selection instanceof NodeSelection)
       { scrollRectIntoView(this, this.docView.domAfterPos(state.selection.from).getBoundingClientRect(), startDOM); }
@@ -11956,9 +11970,11 @@ function splitBlock(state, dispatch) {
     }
     if (can) {
       tr.split(tr.mapping.map($from.pos), 1, types);
-      if (!atEnd && !$from.parentOffset && $from.parent.type != deflt &&
-          $from.node(-1).canReplace($from.index(-1), $from.indexAfter(-1), Fragment.from([deflt.create(), $from.parent])))
-        { tr.setNodeMarkup(tr.mapping.map($from.before()), deflt); }
+      if (!atEnd && !$from.parentOffset && $from.parent.type != deflt) {
+        var first = tr.mapping.map($from.before()), $first = tr.doc.resolve(first);
+        if ($from.node(-1).canReplaceWith($first.index(), $first.index() + 1, deflt))
+          { tr.setNodeMarkup(tr.mapping.map($from.before()), deflt); }
+      }
     }
     dispatch(tr.scrollIntoView());
   }
@@ -12693,7 +12709,7 @@ var Branch = function Branch(items, eventCount) {
 // Pop the latest event off the branch's history and apply it
 // to a document transform.
 Branch.prototype.popEvent = function popEvent (state, preserveItems) {
-    var this$1 = this;
+    var this$1$1 = this;
 
   if (this.eventCount == 0) { return null }
 
@@ -12715,7 +12731,7 @@ Branch.prototype.popEvent = function popEvent (state, preserveItems) {
   this.items.forEach(function (item, i) {
     if (!item.step) {
       if (!remap) {
-        remap = this$1.remapping(end, i + 1);
+        remap = this$1$1.remapping(end, i + 1);
         mapFrom = remap.maps.length;
       }
       mapFrom--;
@@ -12739,7 +12755,7 @@ Branch.prototype.popEvent = function popEvent (state, preserveItems) {
 
     if (item.selection) {
       selection = remap ? item.selection.map(remap.slice(mapFrom)) : item.selection;
-      remaining = new Branch(this$1.items.slice(0, end).append(addBefore.reverse().concat(addAfter)), this$1.eventCount - 1);
+      remaining = new Branch(this$1$1.items.slice(0, end).append(addBefore.reverse().concat(addAfter)), this$1$1.eventCount - 1);
       return false
     }
   }, this.items.length, 0);
