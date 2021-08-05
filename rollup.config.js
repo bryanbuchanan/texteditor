@@ -2,7 +2,7 @@ import resolve from '@rollup/plugin-node-resolve'
 import commonjs from '@rollup/plugin-commonjs'
 import postcss from 'rollup-plugin-postcss'
 import serve from 'rollup-plugin-serve'
-import livereload from 'rollup-plugin-livereload'
+// import livereload from 'rollup-plugin-livereload'
 import { terser } from 'rollup-plugin-terser'
 
 const dev = process.env.ROLLUP_WATCH;
@@ -12,9 +12,9 @@ export default [
 		input: './src/editor.js',
 		output: {
 			file: './dist/editor.js',
-			format: 'esm',
+			format: 'es',
 			sourcemap: false,
-			// plugins: [!dev && terser()]
+			plugins: [!dev && terser()]
 		},
 		plugins: [
 			resolve(),
@@ -22,9 +22,9 @@ export default [
 			dev && serve({
 				port: 10002
 			}),
-			dev && livereload({
-				watch: './'
-			})
+			// dev && livereload({
+			// 	watch: './'
+			// })
 		]	
 	},
 	{
